@@ -1,0 +1,16 @@
+[Unit]
+Description=Superscaler supervisor worker autoscaler
+After=network.target redis.service supervisord.service
+Requires=supervisord.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/superscaler /etc/superscaler/superscaler.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
