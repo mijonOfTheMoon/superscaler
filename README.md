@@ -1,3 +1,5 @@
+![Superscaler Logo or Banner](https://raw.githubusercontent.com/mijonOfTheMoon/images/refs/heads/main/superscaler-logo.png)
+
 # Superscaler
 
 **Superscaler** is an *autoscaling* service for Supervisor *workers*. This service is designed to automatically add or remove the number of *worker* processes in Supervisor according to the incoming workload.
