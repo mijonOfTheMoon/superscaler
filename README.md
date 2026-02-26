@@ -1,4 +1,4 @@
-![Superscaler Logo or Banner](https://raw.githubusercontent.com/mijonOfTheMoon/images/refs/heads/main/superscaler-logo.png)
+![Superscaler Logo](https://raw.githubusercontent.com/mijonOfTheMoon/images/refs/heads/main/new-superscaler-logo.png)
 
 # Superscaler
 
