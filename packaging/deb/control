@@ -1,0 +1,13 @@
+Source: superscaler
+Section: admin
+Priority: optional
+Maintainer: Hasbi Mizan <devopshasbi@gmail.com>
+Build-Depends: debhelper (>= 12), dh-python, python3-all, python3-pip, python3-build, python3-setuptools, python3-wheel
+Standards-Version: 4.5.1
+
+Package: superscaler
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}, python3-pip, systemd
+Description: Zero downtime supervisor worker autoscaler based on Redis queue depth
+ Superscaler monitors Redis queues and dynamically scales supervisor worker
+ process groups using a custom rpc plugin for zero downtime scaling.

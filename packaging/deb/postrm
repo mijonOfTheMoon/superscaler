@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "remove" ]; then
+    pip3 uninstall -y redis 2>/dev/null || :
+    rm -rf /etc/superscaler 2>/dev/null || :
+    rmdir /var/log/superscaler 2>/dev/null || :
+fi
+
+#DEBHELPER#

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "superscaler"
 version = "1.1.1"
 description = "Supervisor worker autoscaler"
-license = {text = "MIT"}
+license-files = ["LICENSE"]
 requires-python = ">=3.9"
 dependencies = ["redis>=4.0.0"]
 
