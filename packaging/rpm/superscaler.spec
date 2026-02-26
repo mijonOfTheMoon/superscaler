@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        1.1.2
+Version:        1.1.3
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler based on Redis queue depth
 License:        MIT
@@ -59,6 +59,10 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Fri Feb 27 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.3-1
+- Make scaling bounds and cooldowns optional with default values
+- Update target params in conf template and README
+
 * Fri Feb 27 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.2-1
 - Add version checking feature
 

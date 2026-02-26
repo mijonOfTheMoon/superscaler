@@ -12,11 +12,15 @@ REQUIRED_TARGET_PARAMS = {
     'tasks_per_worker': int,
     'min_workers': int,
     'max_workers': int,
-    'scale_up_step': int,
-    'scale_down_step': int,
-    'cooldown_up': int,
-    'cooldown_down': int,
-    'pending_timeout': int,
+}
+
+# Optional parameters and their default values
+OPTIONAL_TARGET_PARAMS = {
+    'scale_up_step': (int, 1),
+    'scale_down_step': (int, 1),
+    'cooldown_up': (int, 5),
+    'cooldown_down': (int, 10),
+    'pending_timeout': (int, 10),
 }
 
 
@@ -113,6 +117,11 @@ def load_config(path):
                 raise ValueError(
                     '[%s] missing required option: %s'
                     % (section, param_name))
+            params[param_name] = param_type(raw)
+
+        # Optional scaling parameters
+        for param_name, (param_type, default_val) in OPTIONAL_TARGET_PARAMS.items():
+            raw = parser.get(section, param_name, fallback=str(default_val))
             params[param_name] = param_type(raw)
 
         target = TargetConfig(

@@ -79,14 +79,14 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 
 | Parameter | Description |
 | :--- | :--- |
-| `queue_key` | The exact Redis list key to monitor using `llen`. |
-| `group_name` | The exact Supervisor process group name. |
-| `poll_interval` | Duration in seconds between queue checks. |
-| `tasks_per_worker`| Expected pending tasks ratio assigned for each worker. |
-| `min_workers` | Minimum boundary for worker process count. |
-| `max_workers` | Maximum boundary for worker process count. |
-| `scale_up_step` | The limit of workers to add per scaling up action. |
-| `scale_down_step` | The limit of workers to remove per scaling down action. |
-| `cooldown_up` | Safe duration in seconds to wait before allowing another scale up. |
-| `cooldown_down` | Safe duration in seconds to wait before allowing another scale down. |
-| `pending_timeout` | Duration in seconds to wait for a stopping worker to exit before the superscaler gives up on that stop confirmation logic. |
+| `queue_key` | **Required.** The exact Redis list key to monitor using `llen`. |
+| `group_name` | **Required.** The exact Supervisor process group name. |
+| `poll_interval` | **Required.** Duration in seconds between queue checks. |
+| `tasks_per_worker`| **Required.** Expected pending tasks ratio assigned for each worker. |
+| `min_workers` | **Required.** Minimum boundary for worker process count. |
+| `max_workers` | **Required.** Maximum boundary for worker process count. |
+| `scale_up_step` | *Optional.* The limit of workers to add per scaling up action. Defaults to `1`. |
+| `scale_down_step` | *Optional.* The limit of workers to remove per scaling down action. Defaults to `1`. |
+| `cooldown_up` | *Optional.* Safe duration in seconds to wait before allowing another scale up. Defaults to `5`. |
+| `cooldown_down` | *Optional.* Safe duration in seconds to wait before allowing another scale down. Defaults to `10`. |
+| `pending_timeout` | *Optional.* Duration in seconds to wait for a stopping worker to exit before giving up. Defaults to `10`. |
