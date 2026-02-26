@@ -1,5 +1,41 @@
+superscaler (1.1.2-1) unstable; urgency=low
+
+  * Add version checking feature
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Fri, 27 Feb 2026 07:08:00 +0000
+
 superscaler (1.1.1-1) unstable; urgency=low
 
-  * Initial Debian package release based on existing RPM spec.
+  * Fix documentation in entire codebase
+  * Change unix socket path to include unix:// in config file
 
- -- Hasbi Mizan <devopshasbi@gmail.com>  Thu, 26 Feb 2026 05:45:00 +0000
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Thu, 27 Feb 2026 05:45:00 +0000
+
+superscaler (1.1.0-1) unstable; urgency=low
+
+  * Fix config update using line parser instead of regex
+  * Fix monotonic clock usage in main sleep loop
+  * Allow scale up during pending scale down operations
+  * Fix confirm scale down ordering to prevent state divergence
+  * Add pending timeout to clear stuck pending entries
+  * Remove defaults section, all target params now mandatory
+  * Remove http xml rpc support, unix socket only
+  * Add unix_socket_path config option
+  * Add pending_timeout config parameter
+  * Clean up rpm packaging and uninstall residue
+  * Remove log directory creation, output goes to journald
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Wed, 26 Feb 2026 05:45:00 +0000
+
+superscaler (1.0.2-1) unstable; urgency=low
+
+  * Add pip3 install redis in post script
+  * Add python3-pip as runtime dependency
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Tue, 25 Feb 2026 05:45:00 +0000
+
+superscaler (1.0.0-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Tue, 25 Feb 2026 05:45:00 +0000

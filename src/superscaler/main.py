@@ -29,6 +29,14 @@ def main():
     Handles SIGTERM and SIGINT for graceful shutdown, and SIGHUP for live
     configuration reload without restarting the service.
     """
+    if len(sys.argv) > 1 and sys.argv[1] in ('-v', '--version'):
+        try:
+            import importlib.metadata
+            print("superscaler version", importlib.metadata.version("superscaler"))
+        except Exception:
+            print("superscaler version unknown")
+        sys.exit(0)
+
     config_path = sys.argv[1] if len(sys.argv) > 1 \
         else '/etc/superscaler/superscaler.conf'
 
