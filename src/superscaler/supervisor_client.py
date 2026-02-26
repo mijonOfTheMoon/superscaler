@@ -32,22 +32,22 @@ class SupervisorClient:
 
     # Superscaler namespace (custom plugin)
 
-    def get_group_info(self, group_name):
+    def get_group_info(self, program_name):
         """Return group info dict from the superscaler rpc plugin."""
-        return self.server.superscaler.getGroupInfo(group_name)
+        return self.server.superscaler.getGroupInfo(program_name)
 
-    def scale_up(self, group_name, count):
+    def scale_up(self, program_name, count):
         """Add processes to a group. Returns list of added names."""
-        return self.server.superscaler.scaleUp(group_name, count)
+        return self.server.superscaler.scaleUp(program_name, count)
 
-    def scale_down(self, group_name, count):
+    def scale_down(self, program_name, count):
         """Stop processes in a group. Returns list of names being stopped."""
-        return self.server.superscaler.scaleDown(group_name, count)
+        return self.server.superscaler.scaleDown(program_name, count)
 
-    def confirm_scale_down(self, group_name, process_names):
+    def confirm_scale_down(self, program_name, process_names):
         """Remove stopped processes from group. Returns true on success."""
         return self.server.superscaler.confirmScaleDown(
-            group_name, process_names)
+            program_name, process_names)
 
     # Health check
 

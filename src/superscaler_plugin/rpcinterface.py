@@ -30,18 +30,18 @@ class SuperscalerNamespaceRPCInterface:
 
     # Public rpc methods
 
-    def getGroupInfo(self, group_name):
+    def getGroupInfo(self, program_name):
         """Return process count and per process state for a group.
 
-        @param  string group_name  Name of the process group
+        @param  string program_name  Name of the process group
         @return dict               Count and list of process info dicts
         """
         self._update('getGroupInfo')
 
-        group = self.supervisord.process_groups.get(group_name)
+        group = self.supervisord.process_groups.get(program_name)
         if group is None:
             raise RPCError(Faults.BAD_NAME,
-                           'group %r not found' % group_name)
+                           'group %r not found' % program_name)
 
         processes = []
         for name in sorted(group.processes):
@@ -59,29 +59,29 @@ class SuperscalerNamespaceRPCInterface:
             'processes': processes,
         }
 
-    def scaleUp(self, group_name, count):
+    def scaleUp(self, program_name, count):
         """Add new processes to an existing group without touching running workers.
 
         Updates numprocs in the config file on disk, re reads the config
         through supervisor own parser to handle template expansion, then
         injects the new process config objects into the live process group.
 
-        @param  string group_name  Name of the process group
+        @param  string program_name  Name of the process group
         @param  int    count       Number of processes to add
         @return list               Names of added processes
         """
         self._update('scaleUp')
 
-        group = self.supervisord.process_groups.get(group_name)
+        group = self.supervisord.process_groups.get(program_name)
         if group is None:
             raise RPCError(Faults.BAD_NAME,
-                           'group %r not found' % group_name)
+                           'group %r not found' % program_name)
 
         current_count = len(group.processes)
         new_numprocs = current_count + count
 
         # Persist new numprocs to config file on disk
-        self._update_numprocs_in_config(group_name, new_numprocs)
+        self._update_numprocs_in_config(program_name, new_numprocs)
 
         # Re read config so supervisor expands process_num templates
         self.supervisord.options.process_config(do_usage=False)
@@ -89,14 +89,14 @@ class SuperscalerNamespaceRPCInterface:
         # Find the updated process group config
         group_config = None
         for gc in self.supervisord.options.process_group_configs:
-            if gc.name == group_name:
+            if gc.name == program_name:
                 group_config = gc
                 break
 
         if group_config is None:
             raise RPCError(Faults.BAD_NAME,
                            'group config %r not found after re-read'
-                           % group_name)
+                           % program_name)
 
         # Inject new process config objects into the live group
         current_names = set(group.processes.keys())
@@ -111,27 +111,27 @@ class SuperscalerNamespaceRPCInterface:
                 added.append(pconfig.name)
 
         logger.info('scaleUp %s +%d: %s (total=%d)',
-                     group_name, count, added, len(group.processes))
+                     program_name, count, added, len(group.processes))
 
         # Supervisor main loop transition will auto spawn these processes
         return added
 
-    def scaleDown(self, group_name, count):
+    def scaleDown(self, program_name, count):
         """Send stop signal to processes, highest process number first.
 
         Does not remove processes from the group. The daemon must call
         confirmScaleDown after verifying processes have stopped.
 
-        @param  string group_name  Name of the process group
+        @param  string program_name  Name of the process group
         @param  int    count       Number of processes to stop
         @return list               Names of processes being stopped
         """
         self._update('scaleDown')
 
-        group = self.supervisord.process_groups.get(group_name)
+        group = self.supervisord.process_groups.get(program_name)
         if group is None:
             raise RPCError(Faults.BAD_NAME,
-                           'group %r not found' % group_name)
+                           'group %r not found' % program_name)
 
         # Sort descending by name so highest process num stops first
         sorted_procs = sorted(group.processes.values(),
@@ -151,26 +151,26 @@ class SuperscalerNamespaceRPCInterface:
                 # Already stopped, can be confirmed immediately
                 stopping.append(proc.config.name)
 
-        logger.info('scaleDown %s -%d: %s', group_name, count, stopping)
+        logger.info('scaleDown %s -%d: %s', program_name, count, stopping)
         return stopping
 
-    def confirmScaleDown(self, group_name, process_names):
+    def confirmScaleDown(self, program_name, process_names):
         """Remove stopped processes from the group and persist config.
 
         Validates all named processes are stopped, updates the config file
         on disk first, then removes processes from the in memory state.
         This ordering prevents state divergence if the config write fails.
 
-        @param  string group_name      Name of the process group
+        @param  string program_name      Name of the process group
         @param  list   process_names   Names of processes to remove
         @return bool                   True on success
         """
         self._update('confirmScaleDown')
 
-        group = self.supervisord.process_groups.get(group_name)
+        group = self.supervisord.process_groups.get(program_name)
         if group is None:
             raise RPCError(Faults.BAD_NAME,
-                           'group %r not found' % group_name)
+                           'group %r not found' % program_name)
 
         # Validate all processes exist and are stopped before any mutation
         for name in process_names:
@@ -178,7 +178,7 @@ class SuperscalerNamespaceRPCInterface:
             if proc is None:
                 raise RPCError(Faults.BAD_NAME,
                                'process %r not in group %r'
-                               % (name, group_name))
+                               % (name, program_name))
 
             state = proc.get_state()
             if state not in STOPPED_STATES:
@@ -191,7 +191,7 @@ class SuperscalerNamespaceRPCInterface:
         new_numprocs = len(group.processes) - len(process_names)
 
         # Update config on disk first to prevent state divergence
-        self._update_numprocs_in_config(group_name, new_numprocs)
+        self._update_numprocs_in_config(program_name, new_numprocs)
 
         # Re read config to sync supervisor internal state
         self.supervisord.options.process_config(do_usage=False)
@@ -205,7 +205,7 @@ class SuperscalerNamespaceRPCInterface:
             ]
 
         logger.info('confirmScaleDown %s: removed %s (total=%d)',
-                     group_name, process_names, new_numprocs)
+                     program_name, process_names, new_numprocs)
         return True
 
     # Internal helpers (not exposed via xml rpc due to underscore prefix)
@@ -236,7 +236,7 @@ class SuperscalerNamespaceRPCInterface:
 
         return files
 
-    def _update_numprocs_in_config(self, group_name, new_numprocs):
+    def _update_numprocs_in_config(self, program_name, new_numprocs):
         """Update numprocs for a program section in supervisor config.
 
         Reads the config file line by line to find the target program
@@ -244,7 +244,7 @@ class SuperscalerNamespaceRPCInterface:
         comments and formatting, and correctly handles square brackets
         that may appear in values or comments within the section.
         """
-        section_header = '[program:%s]' % group_name
+        section_header = '[program:%s]' % program_name
 
         for filepath in self._find_config_files():
             try:
@@ -290,8 +290,8 @@ class SuperscalerNamespaceRPCInterface:
                 with open(filepath, 'w') as f:
                     f.writelines(lines)
                 logger.debug('Updated numprocs=%d for %s in %s',
-                             new_numprocs, group_name, filepath)
+                             new_numprocs, program_name, filepath)
                 return
 
         logger.warning('Could not find [program:%s] in any config file',
-                       group_name)
+                       program_name)

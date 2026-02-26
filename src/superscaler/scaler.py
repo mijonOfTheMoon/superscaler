@@ -115,7 +115,7 @@ class ScalerEngine:
 
         # Step 5: Get current active worker count from supervisor
         try:
-            info = self.supervisor.get_group_info(target.group_name)
+            info = self.supervisor.get_group_info(target.program_name)
         except Exception:
             logger.warning('[%s] Supervisor unavailable, skipping tick',
                            target.name)
@@ -134,7 +134,7 @@ class ScalerEngine:
                 if count > 0:
                     try:
                         added = self.supervisor.scale_up(
-                            target.group_name, count)
+                            target.program_name, count)
                         cooldown.mark_scale_up()
                         logger.info(
                             '[%s] Scaled up +%d: %s (queue=%d)',
@@ -151,7 +151,7 @@ class ScalerEngine:
                 if count > 0:
                     try:
                         stopping = self.supervisor.scale_down(
-                            target.group_name, count)
+                            target.program_name, count)
                         self.pending_scale_down[target.name] = [
                             {'name': n, 'started': time.monotonic()}
                             for n in stopping
@@ -179,7 +179,7 @@ class ScalerEngine:
         still_stopping = []
 
         for entry in pending:
-            namespec = '%s:%s' % (target.group_name, entry['name'])
+            namespec = '%s:%s' % (target.program_name, entry['name'])
             try:
                 proc_info = self.supervisor.get_process_info(namespec)
                 if proc_info['statename'] in STOPPED_STATES:
@@ -195,7 +195,7 @@ class ScalerEngine:
         if stopped:
             try:
                 self.supervisor.confirm_scale_down(
-                    target.group_name, stopped)
+                    target.program_name, stopped)
                 logger.info('[%s] Scale down confirmed: removed %s',
                             target.name, stopped)
             except Exception:

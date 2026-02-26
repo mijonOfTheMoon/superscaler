@@ -80,8 +80,8 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 | Parameter | Description |
 | :--- | :--- |
 | `queue_key` | **Required.** The exact Redis list key to monitor using `llen`. |
-| `group_name` | **Required.** The exact Supervisor process group name. |
-| `poll_interval` | **Required.** Duration in seconds between queue checks. |
+| `program_name` | **Required.** The exact Supervisor program name to be autoscaled. |
+| `poll_interval` | *Optional.* Duration in seconds between queue checks. Defaults to `10`. |
 | `tasks_per_worker`| **Required.** Expected pending tasks ratio assigned for each worker. |
 | `min_workers` | **Required.** Minimum boundary for worker process count. |
 | `max_workers` | **Required.** Maximum boundary for worker process count. |

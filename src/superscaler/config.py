@@ -8,7 +8,6 @@ logger = logging.getLogger('superscaler')
 # Required parameters for each target section. Every target must specify all
 # of these explicitly. There are no default values or fallback mechanisms.
 REQUIRED_TARGET_PARAMS = {
-    'poll_interval': int,
     'tasks_per_worker': int,
     'min_workers': int,
     'max_workers': int,
@@ -16,6 +15,7 @@ REQUIRED_TARGET_PARAMS = {
 
 # Optional parameters and their default values
 OPTIONAL_TARGET_PARAMS = {
+    'poll_interval': (int, 10),
     'scale_up_step': (int, 1),
     'scale_down_step': (int, 1),
     'cooldown_up': (int, 5),
@@ -34,7 +34,7 @@ class TargetConfig:
 
     name: str
     queue_key: str
-    group_name: str
+    program_name: str
     poll_interval: int
     tasks_per_worker: int
     min_workers: int
@@ -104,9 +104,9 @@ def load_config(path):
             raise ValueError('[%s] missing required option: queue_key'
                              % section)
 
-        group_name = parser.get(section, 'group_name', fallback=None)
-        if not group_name:
-            raise ValueError('[%s] missing required option: group_name'
+        program_name = parser.get(section, 'program_name', fallback=None)
+        if not program_name:
+            raise ValueError('[%s] missing required option: program_name'
                              % section)
 
         # All scaling parameters are mandatory per target
@@ -127,7 +127,7 @@ def load_config(path):
         target = TargetConfig(
             name=target_name,
             queue_key=queue_key,
-            group_name=group_name,
+            program_name=program_name,
             **params,
         )
 
