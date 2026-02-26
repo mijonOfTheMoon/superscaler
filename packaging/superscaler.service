@@ -1,6 +1,6 @@
 [Unit]
-Description=Superscaler supervisor worker autoscaler
-After=network.target redis.service supervisord.service
+Description=Superscaler for autoscaling supervisor worker
+After=network.target supervisord.service
 Requires=supervisord.service
 
 [Service]
