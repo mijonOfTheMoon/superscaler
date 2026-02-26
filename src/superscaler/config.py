@@ -20,7 +20,6 @@ OPTIONAL_TARGET_PARAMS = {
     'scale_down_step': (int, 1),
     'cooldown_up': (int, 0),
     'cooldown_down': (int, 0),
-    'pending_timeout': (int, 10),
 }
 
 
@@ -43,7 +42,6 @@ class TargetConfig:
     scale_down_step: int
     cooldown_up: int
     cooldown_down: int
-    pending_timeout: int
 
 
 @dataclasses.dataclass
@@ -145,8 +143,6 @@ def load_config(path):
             raise ValueError('[%s] scale_down_step must be >= 1' % section)
         if target.poll_interval < 1:
             raise ValueError('[%s] poll_interval must be >= 1' % section)
-        if target.pending_timeout < 1:
-            raise ValueError('[%s] pending_timeout must be >= 1' % section)
 
         targets.append(target)
 

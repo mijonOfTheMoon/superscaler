@@ -1,3 +1,9 @@
+superscaler (1.1.10-1) unstable; urgency=low
+
+  * Remove redundant pending_timeout feature to rely on Supervisor stopwaitsecs and optimized zombie cleanup
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Thu, 26 Feb 2026 10:00:00 +0000
+
 superscaler (1.1.9-1) unstable; urgency=low
 
   * Optimize zombie worker and pending scale down cleanup into a single RPC call per tick

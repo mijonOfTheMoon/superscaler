@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        1.1.9
+Version:        1.1.10
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler based on Redis queue depth
 License:        MIT
@@ -59,6 +59,9 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Thu Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.10-1
+- Remove redundant pending_timeout feature to rely on Supervisor stopwaitsecs and optimized zombie cleanup
+
 * Thu Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.9-1
 - Optimize zombie worker and pending scale down cleanup into a single RPC call per tick
 

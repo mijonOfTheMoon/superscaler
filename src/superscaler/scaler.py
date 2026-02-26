@@ -112,13 +112,11 @@ class ScalerEngine:
                            target.name)
             return
 
-        # Process pending scale downs, timeouts, and find zombies
-        now = time.monotonic()
+        # Process pending scale downs and find zombies
         proc_states = {p['name']: p['statename'] for p in info['processes']}
         
         stopped_or_zombie = []
         still_stopping = []
-        timed_out = []
 
         # Check pending processes
         for entry in pending:
@@ -128,15 +126,8 @@ class ScalerEngine:
             # If the process is no longer reported by supervisor, or is properly stopped
             if state in STOPPED_STATES or state is None:
                 stopped_or_zombie.append(p_name)
-            elif now - entry['started'] >= target.pending_timeout:
-                timed_out.append(p_name)
             else:
                 still_stopping.append(entry)
-
-        if timed_out:
-            logger.warning(
-                '[%s] Pending scale down timed out after %ds for: %s',
-                target.name, target.pending_timeout, timed_out)
 
         # Check for zombies (processes that stopped unexpectedly, not in pending)
         pending_names = {entry['name'] for entry in pending}
