@@ -35,6 +35,6 @@ class RedisMonitor:
         """Return true if redis is reachable."""
         try:
             return self.client.ping()
-        except Exception as exc:
-            logger.error('Redis unreachable: %s', exc)
+        except (redis.ConnectionError, redis.TimeoutError) as exc:
+            logger.error('Redis ping failed: %s', exc)
             return False

@@ -62,6 +62,9 @@ def main():
         logger.error('Cannot connect to redis at %s:%d',
                      config.redis_host, config.redis_port)
         sys.exit(1)
+    
+    logger.info('Successfully connected to Redis at %s:%d', 
+                config.redis_host, config.redis_port)
 
     sv_client = SupervisorClient(
         xmlrpc_url, config.sv_username or None,

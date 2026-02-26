@@ -81,10 +81,10 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 | :--- | :--- |
 | `queue_key` | **Required.** The exact Redis list key to monitor using `llen`. |
 | `program_name` | **Required.** The exact Supervisor program name to be autoscaled. |
-| `poll_interval` | *Optional.* Duration in seconds between queue checks. Defaults to `10`. |
 | `tasks_per_worker`| **Required.** Expected pending tasks ratio assigned for each worker. |
 | `min_workers` | **Required.** Minimum boundary for worker process count. |
 | `max_workers` | **Required.** Maximum boundary for worker process count. |
+| `poll_interval` | *Optional.* Duration in seconds between queue checks. Defaults to `10`. |
 | `scale_up_step` | *Optional.* The limit of workers to add per scaling up action. Defaults to `1`. |
 | `scale_down_step` | *Optional.* The limit of workers to remove per scaling down action. Defaults to `1`. |
 | `cooldown_up` | *Optional.* Safe duration in seconds to wait before allowing another scale up. Defaults to `0`. |
