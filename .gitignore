@@ -1,9 +1,3 @@
-__pycache__/
-*.pyc
-*.pyo
 rpmbuild/
-superscaler.egg-info/
-dist/
-build/
-*.whl
-*.egg
+__pycache__/
+*.sh
