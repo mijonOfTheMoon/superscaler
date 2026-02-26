@@ -87,6 +87,6 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 | `max_workers` | **Required.** Maximum boundary for worker process count. |
 | `scale_up_step` | *Optional.* The limit of workers to add per scaling up action. Defaults to `1`. |
 | `scale_down_step` | *Optional.* The limit of workers to remove per scaling down action. Defaults to `1`. |
-| `cooldown_up` | *Optional.* Safe duration in seconds to wait before allowing another scale up. Defaults to `5`. |
-| `cooldown_down` | *Optional.* Safe duration in seconds to wait before allowing another scale down. Defaults to `10`. |
+| `cooldown_up` | *Optional.* Safe duration in seconds to wait before allowing another scale up. Defaults to `0`. |
+| `cooldown_down` | *Optional.* Safe duration in seconds to wait before allowing another scale down. Defaults to `0`. |
 | `pending_timeout` | *Optional.* Duration in seconds to wait for a stopping worker to exit before giving up. Defaults to `10`. |

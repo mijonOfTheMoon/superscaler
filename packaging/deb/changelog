@@ -1,3 +1,15 @@
+superscaler (1.1.8-1) unstable; urgency=low
+
+  * Improve Redis connection error logging to catch and display all exceptions
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Thu, 26 Feb 2026 08:55:00 +0000
+
+superscaler (1.1.7-1) unstable; urgency=low
+
+  * Change default cooldown scaling values to 0
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Thu, 26 Feb 2026 08:50:00 +0000
+
 superscaler (1.1.6-1) unstable; urgency=low
 
   * Fix bug where scale up ignores pending scale down and exceeds max_workers limit

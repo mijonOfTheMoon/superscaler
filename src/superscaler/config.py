@@ -18,8 +18,8 @@ OPTIONAL_TARGET_PARAMS = {
     'poll_interval': (int, 10),
     'scale_up_step': (int, 1),
     'scale_down_step': (int, 1),
-    'cooldown_up': (int, 5),
-    'cooldown_down': (int, 10),
+    'cooldown_up': (int, 0),
+    'cooldown_down': (int, 0),
     'pending_timeout': (int, 10),
 }
 
