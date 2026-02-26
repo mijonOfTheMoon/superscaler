@@ -59,6 +59,10 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Thu Feb 27 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.1-1
+- Fix documentation in entire codebase
+- Change unix socket path to include unix:// in config file
+
 * Wed Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.0-1
 - Fix config update using line parser instead of regex
 - Fix monotonic clock usage in main sleep loop
