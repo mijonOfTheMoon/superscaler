@@ -59,7 +59,7 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
-* Wed Feb 26 2026 Developer <dev@example.com> - 1.1.0-1
+* Wed Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.0-1
 - Fix config update using line parser instead of regex
 - Fix monotonic clock usage in main sleep loop
 - Allow scale up during pending scale down operations
@@ -72,9 +72,9 @@ fi
 - Clean up rpm packaging and uninstall residue
 - Remove log directory creation, output goes to journald
 
-* Tue Feb 25 2026 Developer <dev@example.com> - 1.0.2-1
+* Tue Feb 25 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.0.2-1
 - Add pip3 install redis in post script
 - Add python3-pip as runtime dependency
 
-* Tue Feb 25 2026 Developer <dev@example.com> - 1.0.0-1
+* Tue Feb 25 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.0.0-1
 - Initial release

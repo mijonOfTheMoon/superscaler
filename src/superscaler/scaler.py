@@ -12,7 +12,6 @@ ACTIVE_STATES = frozenset({'RUNNING', 'STARTING', 'BACKOFF'})
 # States considered stopped, safe to confirm removal
 STOPPED_STATES = frozenset({'STOPPED', 'EXITED', 'FATAL', 'UNKNOWN'})
 
-
 class ScalerEngine:
     """Core scaling loop that processes all configured targets independently.
 

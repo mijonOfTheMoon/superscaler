@@ -10,7 +10,6 @@ from superscaler.scaler import ScalerEngine
 
 logger = logging.getLogger('superscaler')
 
-
 def setup_logging():
     """Configure logging to stderr for journald capture."""
     root = logging.getLogger('superscaler')
@@ -21,7 +20,6 @@ def setup_logging():
         datefmt='%Y-%m-%d %H:%M:%S',
     ))
     root.addHandler(handler)
-
 
 def main():
     """Entry point for the superscaler daemon.
@@ -46,7 +44,7 @@ def main():
     logger.info('Loaded %d target(s)', len(config.targets))
 
     # Build unix socket url for supervisor xml rpc transport
-    xmlrpc_url = 'unix://%s' % config.unix_socket_path
+    xmlrpc_url = config.unix_socket_path
 
     # Health checks
     redis_mon = RedisMonitor(

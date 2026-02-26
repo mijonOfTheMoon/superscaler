@@ -5,9 +5,8 @@ from supervisor.xmlrpc import SupervisorTransport
 
 logger = logging.getLogger('superscaler')
 
-
 class SupervisorClient:
-    """Xml rpc client for supervisor using unix socket transport.
+    """XML rpc client for supervisor using unix socket transport.
 
     Wraps both the standard supervisor namespace and the custom superscaler
     namespace provided by the superscaler plugin. Authentication is passed

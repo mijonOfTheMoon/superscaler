@@ -10,9 +10,8 @@ from supervisor.xmlrpc import Faults, RPCError
 
 logger = logging.getLogger('superscaler.plugin')
 
-
 class SuperscalerNamespaceRPCInterface:
-    """Rpc interface for zero downtime scaling of supervisor process groups.
+    """Custom rpc namespace for handling the scaling process of supervisor process groups.
 
     Loaded by supervisord via the [rpcinterface:superscaler] config section.
     Manipulates the process group processes dict directly to add or remove

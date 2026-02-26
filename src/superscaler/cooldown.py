@@ -1,6 +1,5 @@
 import time
 
-
 class CooldownManager:
     """Track cooldown periods for scale up and scale down actions.
 

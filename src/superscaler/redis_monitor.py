@@ -6,10 +6,9 @@ logger = logging.getLogger('superscaler')
 
 
 class RedisMonitor:
-    """Monitor redis list lengths to determine queue depth.
-
-    Provides a thin wrapper around the redis client focused on the LLEN
-    command used for queue depth monitoring and a health check ping.
+    """Thin wrapper around the redis client
+    
+    Monitor redis list lengths to determine queue depth and health check
     """
 
     def __init__(self, host, port, password, db):

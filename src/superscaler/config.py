@@ -61,19 +61,12 @@ def load_config(path):
     """Parse the superscaler configuration file and return a config object.
 
     Expected sections: [redis], [supervisor], [target:*].
-    The [defaults] section is not supported. Every target must specify all
-    scaling parameters explicitly.
+    Every target must specify all scaling parameters explicitly.
     """
     parser = configparser.ConfigParser()
     read_ok = parser.read(path)
     if not read_ok:
         raise ValueError('Cannot read config file: %s' % path)
-
-    # Reject legacy defaults section
-    if parser.has_section('defaults'):
-        raise ValueError(
-            'The [defaults] section is no longer supported in v1.1. '
-            'Please specify all parameters in each [target:*] section.')
 
     # Redis section
     if not parser.has_section('redis'):
@@ -98,8 +91,6 @@ def load_config(path):
     targets = []
     target_sections = [s for s in parser.sections()
                        if s.startswith('target:')]
-    if not target_sections:
-        raise ValueError('At least one [target:*] section is required')
 
     for section in target_sections:
         target_name = section.split(':', 1)[1]
