@@ -1,3 +1,9 @@
+superscaler (1.1.9-1) unstable; urgency=low
+
+  * Optimize zombie worker and pending scale down cleanup into a single RPC call per tick
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Thu, 26 Feb 2026 09:40:00 +0000
+
 superscaler (1.1.8-1) unstable; urgency=low
 
   * Improve Redis connection error logging to catch and display all exceptions

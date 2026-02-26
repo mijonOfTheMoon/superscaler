@@ -92,14 +92,7 @@ class ScalerEngine:
         cooldown = self.cooldowns[target.name]
         pending = self.pending_scale_down[target.name]
 
-        # Step 1: Check and clean up pending scale down operations
-        if pending:
-            self._check_pending_scale_down(target)
-
-        # Step 2: Clear timed out pending entries
-        self._check_pending_timeout(target)
-
-        # Step 3: Poll redis queue length
+        # Poll redis queue length
         try:
             queue_len = self.redis.get_queue_length(target.queue_key)
         except Exception:
@@ -107,11 +100,11 @@ class ScalerEngine:
                            target.name)
             return
 
-        # Step 4: Calculate desired worker count
+        # Calculate desired worker count
         desired = math.ceil(queue_len / target.tasks_per_worker)
         desired = max(target.min_workers, min(target.max_workers, desired))
 
-        # Step 5: Get current active worker count from supervisor
+        # Get current group info from supervisor (only ONE RPC call per tick)
         try:
             info = self.supervisor.get_group_info(target.program_name)
         except Exception:
@@ -119,12 +112,70 @@ class ScalerEngine:
                            target.name)
             return
 
+        # Process pending scale downs, timeouts, and find zombies
+        now = time.monotonic()
+        proc_states = {p['name']: p['statename'] for p in info['processes']}
+        
+        stopped_or_zombie = []
+        still_stopping = []
+        timed_out = []
+
+        # Check pending processes
+        for entry in pending:
+            p_name = entry['name']
+            state = proc_states.get(p_name)
+            
+            # If the process is no longer reported by supervisor, or is properly stopped
+            if state in STOPPED_STATES or state is None:
+                stopped_or_zombie.append(p_name)
+            elif now - entry['started'] >= target.pending_timeout:
+                timed_out.append(p_name)
+            else:
+                still_stopping.append(entry)
+
+        if timed_out:
+            logger.warning(
+                '[%s] Pending scale down timed out after %ds for: %s',
+                target.name, target.pending_timeout, timed_out)
+
+        # Check for zombies (processes that stopped unexpectedly, not in pending)
+        pending_names = {entry['name'] for entry in pending}
+        for p in info['processes']:
+            if p['statename'] in STOPPED_STATES and p['name'] not in pending_names and p['name'] not in stopped_or_zombie:
+                stopped_or_zombie.append(p['name'])
+                
+        # Remove confirmed stopped and zombie processes efficiently
+        if stopped_or_zombie:
+            try:
+                self.supervisor.confirm_scale_down(
+                    target.program_name, stopped_or_zombie)
+                logger.info('[%s] Removed %d stopped/zombie processes: %s',
+                            target.name, len(stopped_or_zombie), stopped_or_zombie)
+                
+                # Update info['processes'] locally to avoid an extra RPC call
+                info['processes'] = [
+                    p for p in info['processes'] if p['name'] not in stopped_or_zombie
+                ]
+            except Exception:
+                logger.exception(
+                    '[%s] Confirm scale down failed for %s',
+                    target.name, stopped_or_zombie)
+                # Keep original pending ones in the pending list for next retry
+                for name in stopped_or_zombie:
+                    original = next(
+                        (e for e in pending if e['name'] == name), None)
+                    if original:
+                        still_stopping.append(original)
+
+        self.pending_scale_down[target.name] = still_stopping
+
+        # Count active processes
         active = sum(
             1 for p in info['processes']
             if p['statename'] in ACTIVE_STATES
         )
 
-        # Step 6: Scale up only when no pending operations exist
+        # Scale up only when no pending operations exist
         if desired > active and not self.pending_scale_down[target.name]:
             if cooldown.can_scale_up():
                 total_procs = len(info['processes'])
@@ -142,7 +193,7 @@ class ScalerEngine:
                         logger.exception('[%s] Scale up failed',
                                          target.name)
 
-        # Step 7: Scale down only when no pending operations exist
+        # Scale down only when no pending operations exist
         elif desired < active and not self.pending_scale_down[target.name]:
             if cooldown.can_scale_down():
                 count = min(target.scale_down_step,
@@ -162,79 +213,3 @@ class ScalerEngine:
                     except Exception:
                         logger.exception('[%s] Scale down failed',
                                          target.name)
-
-    def _check_pending_scale_down(self, target):
-        """Poll pending processes and confirm those that have stopped.
-
-        Processes that are confirmed stopped are removed from the supervisor
-        group via confirm_scale_down. Processes still stopping or unreachable
-        remain in the pending list for the next check.
-        """
-        pending = self.pending_scale_down[target.name]
-        if not pending:
-            return
-
-        stopped = []
-        still_stopping = []
-
-        for entry in pending:
-            namespec = '%s:%s' % (target.program_name, entry['name'])
-            try:
-                proc_info = self.supervisor.get_process_info(namespec)
-                if proc_info['statename'] in STOPPED_STATES:
-                    stopped.append(entry['name'])
-                else:
-                    still_stopping.append(entry)
-            except Exception:
-                logger.warning(
-                    '[%s] Cannot get info for %s, keeping pending',
-                    target.name, namespec)
-                still_stopping.append(entry)
-
-        if stopped:
-            try:
-                self.supervisor.confirm_scale_down(
-                    target.program_name, stopped)
-                logger.info('[%s] Scale down confirmed: removed %s',
-                            target.name, stopped)
-            except Exception:
-                logger.exception(
-                    '[%s] Confirm scale down failed for %s',
-                    target.name, stopped)
-                # Keep them in pending with original timestamps so we retry
-                for name in stopped:
-                    original = next(
-                        (e for e in pending if e['name'] == name), None)
-                    if original:
-                        still_stopping.append(original)
-
-        self.pending_scale_down[target.name] = still_stopping
-
-    def _check_pending_timeout(self, target):
-        """Clear pending entries that have exceeded the configured timeout.
-
-        When a process takes too long to stop or supervisor loses contact,
-        the pending entry is dropped with a warning so that the target is
-        not blocked indefinitely.
-        """
-        pending = self.pending_scale_down[target.name]
-        if not pending:
-            return
-
-        now = time.monotonic()
-        timeout = target.pending_timeout
-        timed_out = []
-        remaining = []
-
-        for entry in pending:
-            if now - entry['started'] >= timeout:
-                timed_out.append(entry['name'])
-            else:
-                remaining.append(entry)
-
-        if timed_out:
-            logger.warning(
-                '[%s] Pending scale down timed out after %ds for: %s',
-                target.name, timeout, timed_out)
-
-        self.pending_scale_down[target.name] = remaining
