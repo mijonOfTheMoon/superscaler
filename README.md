@@ -29,7 +29,7 @@ For every configured target, the superscaler daemon periodically based on `poll_
 1. Superscaler retrieves the Redis queue depth (`llen`) and calculates: `desired_workers = ceil(queue_len / tasks_per_worker)`.
 2. Bounds the `desired_workers` between `min_workers` and `max_workers`.
 3. Checks the actual number of active workers currently running in Supervisor.
-4. **If active < desired**: Emits a `scaleUp` RPC call (up to `scale_up_step`) if `cooldown_up` time has elapsed.
+4. **If active < desired**: Emits a `scaleUp` RPC call (up to `scale_up_step`) if `cooldown_up` time has elapsed AND there are no pending processes still in the middle of being stopped.
 5. **If active > desired**: Emits a `scaleDown` RPC call (up to `scale_down_step`) if `cooldown_down` has elapsed AND there are no pending processes still in the middle of being stopped.
 
 ### How it Works

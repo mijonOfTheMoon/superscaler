@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        1.1.5
+Version:        1.1.6
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler based on Redis queue depth
 License:        MIT
@@ -59,6 +59,9 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Thu Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.6-1
+- Fix bug where scale up ignores pending scale down and exceeds max_workers limit
+
 * Thu Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.5-1
 - Make poll_interval parameter optional with default of 10
 

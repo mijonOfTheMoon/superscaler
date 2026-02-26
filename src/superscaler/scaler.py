@@ -16,8 +16,7 @@ class ScalerEngine:
     """Core scaling loop that processes all configured targets independently.
 
     Each target maintains its own cooldown timers and pending scale down
-    state. Scale up is always allowed even when a scale down operation is
-    pending. New scale down operations are blocked while a previous one
+    state. New scaling operations are blocked while a previous one
     is still being confirmed.
     """
 
@@ -87,9 +86,8 @@ class ScalerEngine:
     def _process_target(self, target):
         """Evaluate and act on a single target.
 
-        Scale up is allowed even when there are pending scale down operations.
-        New scale down operations are blocked while pending ones exist to
-        prevent cascading stops.
+        Scale up and scale down operations are blocked while pending ones exist
+        to prevent cascading stops and configuration divergence.
         """
         cooldown = self.cooldowns[target.name]
         pending = self.pending_scale_down[target.name]
@@ -126,11 +124,12 @@ class ScalerEngine:
             if p['statename'] in ACTIVE_STATES
         )
 
-        # Step 6: Scale up is always allowed, even during pending scale down
-        if desired > active:
+        # Step 6: Scale up only when no pending operations exist
+        if desired > active and not self.pending_scale_down[target.name]:
             if cooldown.can_scale_up():
+                total_procs = len(info['processes'])
                 count = min(target.scale_up_step,
-                            target.max_workers - active)
+                            target.max_workers - total_procs)
                 if count > 0:
                     try:
                         added = self.supervisor.scale_up(
