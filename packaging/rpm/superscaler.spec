@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        1.1.0
+Version:        1.1.1
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler based on Redis queue depth
 License:        MIT
