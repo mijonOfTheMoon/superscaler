@@ -5,7 +5,9 @@
 Autoscaling feature is not supported by Supervisor natively. However, Supervisor mentions in their documentation that they provide an RPC interface whose functionality can be extended.
 
 ```
-Supervisor's XML-RPC interface may be extended arbitrarily by programmers. Additional top-level namespace XML-RPC interfaces can be added using the [rpcinterface:foo] declaration in the configuration file.
+Supervisor's XML-RPC interface may be extended arbitrarily by programmers. 
+Additional top-level namespace XML-RPC interfaces can be added
+using the [rpcinterface:foo] declaration in the configuration file.
 ```
 
 ---
