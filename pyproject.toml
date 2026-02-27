@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=66", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "superscaler"
 version = "1.1.10"
 description = "Supervisor worker autoscaler"
-license-files = ["LICENSE"]
+license = {text = "MIT"}
 requires-python = ">=3.9"
 dependencies = ["redis>=4.0.0"]
 
