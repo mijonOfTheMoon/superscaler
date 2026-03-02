@@ -39,11 +39,39 @@ Because standard Supervisor does not support dynamic process additions/removals 
 
 ---
 
-## Usage
+## Installation Guide
 
 Requirements for superscaler are `python3.9` and `redis-py` minimum version `4.0.0`. This codebase provides standardized installation for `.rpm` and `.deb` distributions.
 
-### Supervisor Configuration
+### Red Hat / CentOS
+
+1. Download the RPM package
+
+```bash
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/latest/superscaler-1.1.10-1.amzn2023.noarch.rpm
+```
+
+2. Install the package
+
+```bash
+sudo rpm -i superscaler-1.1.10-1.amzn2023.noarch.rpm
+```
+
+### Debian / Ubuntu
+
+1. Download the DEB package
+
+```bash
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/latest/superscaler-1.1.10-1_all.deb
+```
+
+2. Install the package
+
+```bash
+sudo dpkg -i superscaler-1.1.10-1_all.deb
+```
+
+## Usage
 
 Add the following plugin to your `supervisord.conf` configuration:
 ```ini
@@ -51,9 +79,7 @@ Add the following plugin to your `supervisord.conf` configuration:
 supervisor.rpcinterface_factory = superscaler_plugin.rpcinterface:SuperscalerNamespaceRPCInterface
 ```
 
-### Superscaler Daemon Configuration
-
-The default path for the superscaler configuration file is `/etc/superscaler/superscaler.conf`.
+After adding the plugin, configure the superscaler. The default path for the superscaler configuration file is `/etc/superscaler/superscaler.conf`.
 
 #### `[redis]` Section
 Configures the connection to your Redis server.
@@ -89,3 +115,12 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 | `scale_down_step` | *Optional.* The limit of workers to remove per scaling down action. Defaults to `1`. |
 | `cooldown_up` | *Optional.* Safe duration in seconds to wait before allowing another scale up. Defaults to `0`. |
 | `cooldown_down` | *Optional.* Safe duration in seconds to wait before allowing another scale down. Defaults to `0`. |
+
+### Post Configuration
+
+After configuring the superscaler, you need to restart the supervisor and superscaler services to apply the changes.
+
+```bash
+sudo systemctl restart supervisor
+sudo systemctl restart superscaler
+```
