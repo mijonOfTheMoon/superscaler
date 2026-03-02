@@ -1,7 +1,6 @@
 [Unit]
 Description=Superscaler for autoscaling supervisor worker
-After=network.target supervisord.service
-Requires=supervisord.service
+After=network.target supervisord.service supervisor.service
 
 [Service]
 Type=simple

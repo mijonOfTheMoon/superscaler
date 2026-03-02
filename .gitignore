@@ -2,3 +2,4 @@ rpmbuild/
 debbuild/
 __pycache__/
 *.sh
+*.swp

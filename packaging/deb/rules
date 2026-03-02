@@ -10,8 +10,11 @@ override_dh_auto_test:
 	# Skip test
 
 override_dh_auto_install:
-	# Instal dari wheel ke folder root sistem debian
 	python3 -m pip install --root=$(CURDIR)/debian/superscaler --prefix=/usr --no-deps --ignore-installed --no-warn-script-location dist/*.whl
+	if [ -d $(CURDIR)/debian/superscaler/usr/local ] ; then \
+		cp -a $(CURDIR)/debian/superscaler/usr/local/* $(CURDIR)/debian/superscaler/usr/ ; \
+		rm -rf $(CURDIR)/debian/superscaler/usr/local ; \
+	fi
 
 override_dh_auto_clean:
 	dh_auto_clean
