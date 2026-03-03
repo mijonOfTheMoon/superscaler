@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        1.2.0
+Version:        2.0.1
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler with pluggable queue backends
 License:        MIT
@@ -59,7 +59,7 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
-* Mon Mar 03 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.2.0-1
+* Mon Mar 03 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.0.1-1
 - Refactor to pluggable multi-backend queue monitor abstraction
 - Add RabbitMQ support via pika AMQP
 - Replace single [redis] config with named [queue:*] backend sections

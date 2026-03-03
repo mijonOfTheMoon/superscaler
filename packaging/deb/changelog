@@ -1,4 +1,4 @@
-superscaler (1.2.0-1) unstable; urgency=low
+superscaler (2.0.1-1) unstable; urgency=low
 
   * Refactor to pluggable multi-backend queue monitor abstraction
   * Add RabbitMQ support via pika AMQP

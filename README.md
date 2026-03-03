@@ -48,13 +48,13 @@ Requirements for superscaler are `python3.9`, `redis-py` minimum version `4.0.0`
 1. Download the RPM package
 
 ```bash
-curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.2.0/superscaler-1.2.0-1.amzn2023.noarch.rpm
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/2.0.1/superscaler-2.0.1-1.amzn2023.noarch.rpm
 ```
 
 2. Install the package
 
 ```bash
-sudo dnf install superscaler-1.2.0-1.amzn2023.noarch.rpm
+sudo dnf install superscaler-2.0.1-1.amzn2023.noarch.rpm
 ```
 
 ### Debian / Ubuntu
@@ -62,13 +62,13 @@ sudo dnf install superscaler-1.2.0-1.amzn2023.noarch.rpm
 1. Download the DEB package
 
 ```bash
-curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.2.0/superscaler-1.2.0-1_all.deb
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/2.0.1/superscaler-2.0.1-1_all.deb
 ```
 
 2. Install the package
 
 ```bash
-sudo dpkg -i superscaler-1.2.0-1_all.deb
+sudo dpkg -i superscaler-2.0.1-1_all.deb
 ```
 
 ## Usage
