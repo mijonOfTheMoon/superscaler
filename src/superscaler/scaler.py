@@ -17,12 +17,13 @@ class ScalerEngine:
 
     Each target maintains its own cooldown timers and pending scale down
     state. New scaling operations are blocked while a previous one
-    is still being confirmed.
+    is still being confirmed. Each target looks up its own queue monitor
+    from the monitors dict based on the target queue reference.
     """
 
-    def __init__(self, config, redis_monitor, supervisor_client):
+    def __init__(self, config, queue_monitors, supervisor_client):
         self.config = config
-        self.redis = redis_monitor
+        self.queue_monitors = queue_monitors
         self.supervisor = supervisor_client
         self.running = True
 
@@ -42,11 +43,14 @@ class ScalerEngine:
                 self.pending_scale_down[target.name] = []
             self.last_tick[target.name] = 0.0
 
-    def reload_config(self, new_config):
+    def reload_config(self, new_config, queue_monitors=None):
         """Apply new config after sighup while preserving pending state."""
         old_names = {t.name for t in self.config.targets}
         new_names = {t.name for t in new_config.targets}
         self.config = new_config
+
+        if queue_monitors is not None:
+            self.queue_monitors = queue_monitors
 
         # Remove state for deleted targets
         for removed in old_names - new_names:
@@ -92,11 +96,17 @@ class ScalerEngine:
         cooldown = self.cooldowns[target.name]
         pending = self.pending_scale_down[target.name]
 
-        # Poll redis queue length
+        # Poll queue length from the target queue backend
+        monitor = self.queue_monitors.get(target.queue)
+        if monitor is None:
+            logger.error('[%s] Queue backend %r not found, skipping tick',
+                         target.name, target.queue)
+            return
+
         try:
-            queue_len = self.redis.get_queue_length(target.queue_key)
+            queue_len = monitor.get_queue_length(target.queue_name)
         except Exception:
-            logger.warning('[%s] Redis unavailable, skipping tick',
+            logger.warning('[%s] Queue unavailable, skipping tick',
                            target.name)
             return
 

@@ -15,8 +15,8 @@ using the [rpcinterface:foo] declaration in the configuration file.
 
 - **Zero Downtime**
   Superscaler modifies the number of workers without needing to restart other workers that are currently processing the queue. Superscaler manipulates Supervisor's *in-memory process dictionary* through a custom plugin.
-- **Based on Redis Queue Length**
-  Periodically reads the Redis queue length (of type *List* using the `llen` query). The target *workers* are calculated proportionally to `tasks_per_worker`.
+- **Pluggable Queue Backends**
+  Supports multiple queue backends simultaneously. Each target can monitor a different queue system. Currently supported backends: **RabbitMQ** (via AMQP) and **Redis** (via list length). Adding new backends requires only subclassing `QueueMonitor` and registering in the backend registry.
 
 ---
 
@@ -26,7 +26,7 @@ Superscaler consists of two components:
 
 ### Scaling Algorithm
 For every configured target, the superscaler daemon periodically based on `poll_interval` configuration.
-1. Superscaler retrieves the Redis queue depth (`llen`) and calculates: `desired_workers = ceil(queue_len / tasks_per_worker)`.
+1. Superscaler retrieves the queue depth from the configured backend and calculates: `desired_workers = ceil(queue_len / tasks_per_worker)`.
 2. Bounds the `desired_workers` between `min_workers` and `max_workers`.
 3. Checks the actual number of active workers currently running in Supervisor.
 4. **If active < desired**: Emits a `scaleUp` RPC call (up to `scale_up_step`) if `cooldown_up` time has elapsed AND there are no pending processes still in the middle of being stopped.
@@ -41,20 +41,20 @@ Because standard Supervisor does not support dynamic process additions/removals 
 
 ## Installation Guide
 
-Requirements for superscaler are `python3.9` and `redis-py` minimum version `4.0.0`. This codebase provides standardized installation for `.rpm` and `.deb` distributions.
+Requirements for superscaler are `python3.9`, `redis-py` minimum version `4.0.0`, and `pika` minimum version `1.2.0`. This codebase provides standardized installation for `.rpm` and `.deb` distributions.
 
 ### Red Hat / CentOS
 
 1. Download the RPM package
 
 ```bash
-curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.1.10/superscaler-1.1.10-1.amzn2023.noarch.rpm
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.2.0/superscaler-1.2.0-1.amzn2023.noarch.rpm
 ```
 
 2. Install the package
 
 ```bash
-sudo rpm -i superscaler-1.1.10-1.amzn2023.noarch.rpm
+sudo rpm -i superscaler-1.2.0-1.amzn2023.noarch.rpm
 ```
 
 ### Debian / Ubuntu
@@ -62,13 +62,13 @@ sudo rpm -i superscaler-1.1.10-1.amzn2023.noarch.rpm
 1. Download the DEB package
 
 ```bash
-curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.1.10/superscaler-1.1.10-1_all.deb
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.2.0/superscaler-1.2.0-1_all.deb
 ```
 
 2. Install the package
 
 ```bash
-sudo dpkg -i superscaler-1.1.10-1_all.deb
+sudo dpkg -i superscaler-1.2.0-1_all.deb
 ```
 
 ## Usage
@@ -81,16 +81,6 @@ supervisor.rpcinterface_factory = superscaler_plugin.rpcinterface:SuperscalerNam
 
 After adding the plugin, configure the superscaler. The default path for the superscaler configuration file is `/etc/superscaler/superscaler.conf`.
 
-#### `[redis]` Section
-Configures the connection to your Redis server.
-
-| Parameter | Description |
-| :--- | :--- |
-| `host` | Redis server IP or hostname (e.g., `127.0.0.1`) |
-| `port` | Redis port (e.g., `6379`) |
-| `password` | Redis password. Leave blank if none. |
-| `db` | Redis DB integer index (e.g., `0`) |
-
 #### `[supervisor]` Section
 Configures the communication layer to the Supervisor daemon.
 
@@ -100,12 +90,39 @@ Configures the communication layer to the Supervisor daemon.
 | `username` | Supervisor username. Leave blank if none. |
 | `password` | Supervisor password. Leave blank if none. |
 
-#### `[target:<your_target_name>]` Section
-Every target worker pool must be defined with `[target:<your_target_name>]` prefix. For instance, `[target:example-worker]`.
+#### `[queue:<name>]` Section
+Defines a named queue backend. Multiple backends can be configured simultaneously. The `type` parameter selects the backend driver.
 
 | Parameter | Description |
 | :--- | :--- |
-| `queue_key` | **Required.** The exact Redis list key to monitor using `llen`. |
+| `type` | **Required.** Backend type: `rabbitmq` or `redis` |
+
+**RabbitMQ parameters** (`type = rabbitmq`):
+
+| Parameter | Description |
+| :--- | :--- |
+| `host` | RabbitMQ server hostname (e.g., `127.0.0.1`) |
+| `port` | AMQP port (e.g., `5672`) |
+| `username` | RabbitMQ username (e.g., `guest`) |
+| `password` | RabbitMQ password (e.g., `guest`) |
+| `vhost` | Virtual host (e.g., `/`) |
+
+**Redis parameters** (`type = redis`):
+
+| Parameter | Description |
+| :--- | :--- |
+| `host` | Redis server IP or hostname (e.g., `127.0.0.1`) |
+| `port` | Redis port (e.g., `6379`) |
+| `password` | Redis password. Leave blank if none. |
+| `db` | Redis DB integer index (e.g., `0`) |
+
+#### `[target:<your_target_name>]` Section
+Every target worker pool must be defined with `[target:<your_target_name>]` prefix. For instance, `[target:example-scaler]`.
+
+| Parameter | Description |
+| :--- | :--- |
+| `queue` | **Required.** Name of a `[queue:*]` section to use as the queue backend. |
+| `queue_name` | **Required.** Queue name to monitor in the backend. |
 | `program_name` | **Required.** The exact Supervisor program name to be autoscaled. |
 | `tasks_per_worker`| **Required.** Expected pending tasks ratio assigned for each worker. |
 | `min_workers` | **Required.** Minimum boundary for worker process count. |

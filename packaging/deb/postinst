@@ -3,7 +3,7 @@ set -e
 
 if [ "$1" = "configure" ]; then
     # Install dependencies manually to match RPM spec
-    pip3 install 'redis>=4.0.0' 2>/dev/null || :
+    pip3 install 'redis>=4.0.0' 'pika>=1.2.0' 2>/dev/null || :
 fi
 
 #DEBHELPER#

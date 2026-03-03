@@ -1,7 +1,7 @@
 import configparser
 import dataclasses
 import logging
-from typing import List
+from typing import List, Dict
 
 logger = logging.getLogger('superscaler')
 
@@ -22,17 +22,35 @@ OPTIONAL_TARGET_PARAMS = {
     'cooldown_down': (int, 0),
 }
 
+# Reserved keys in queue sections that are not backend params
+QUEUE_RESERVED_KEYS = {'type'}
+
+
+@dataclasses.dataclass
+class QueueConfig:
+    """Configuration for a named queue backend.
+
+    Each queue config defines a backend type and its connection parameters.
+    Multiple targets can reference the same queue config by name.
+    """
+
+    name: str
+    type: str
+    params: dict
+
 
 @dataclasses.dataclass
 class TargetConfig:
     """Configuration for a single scaling target.
 
-    Each target maps a redis queue key to a supervisor process group and
-    defines all scaling parameters that control how the group is managed.
+    Each target maps a queue name in a specific backend to a supervisor
+    process group and defines all scaling parameters that control how
+    the group is managed.
     """
 
     name: str
-    queue_key: str
+    queue: str
+    queue_name: str
     program_name: str
     poll_interval: int
     tasks_per_worker: int
@@ -46,37 +64,26 @@ class TargetConfig:
 
 @dataclasses.dataclass
 class SuperscalerConfig:
-    """Top level configuration holding redis, supervisor, and target settings."""
+    """Top level configuration holding queue backends, supervisor, and target settings."""
 
     config_path: str
-    redis_host: str
-    redis_port: int
-    redis_password: str
-    redis_db: int
     unix_socket_path: str
     sv_username: str
     sv_password: str
+    queues: Dict[str, QueueConfig]
     targets: List[TargetConfig]
 
 
 def load_config(path):
     """Parse the superscaler configuration file and return a config object.
 
-    Expected sections: [redis], [supervisor], [target:*].
-    Every target must specify all scaling parameters explicitly.
+    Expected sections: [queue:*], [supervisor], [target:*].
+    Queue backends are defined in named sections and referenced by targets.
     """
     parser = configparser.ConfigParser()
     read_ok = parser.read(path)
     if not read_ok:
         raise ValueError('Cannot read config file: %s' % path)
-
-    # Redis section
-    if not parser.has_section('redis'):
-        raise ValueError('Missing required section [redis]')
-    redis_host = parser.get('redis', 'host', fallback='127.0.0.1')
-    redis_port = parser.getint('redis', 'port', fallback=6379)
-    redis_password = parser.get('redis', 'password', fallback='')
-    redis_db = parser.getint('redis', 'db', fallback=0)
 
     # Supervisor section
     if not parser.has_section('supervisor'):
@@ -89,6 +96,33 @@ def load_config(path):
     sv_username = parser.get('supervisor', 'username', fallback='')
     sv_password = parser.get('supervisor', 'password', fallback='')
 
+    # Queue sections
+    queues = {}
+    queue_sections = [s for s in parser.sections()
+                      if s.startswith('queue:')]
+
+    for section in queue_sections:
+        queue_name = section.split(':', 1)[1]
+
+        queue_type = parser.get(section, 'type', fallback=None)
+        if not queue_type:
+            raise ValueError('[%s] missing required option: type' % section)
+
+        # Collect all non-reserved keys as backend params
+        params = {}
+        for key, value in parser.items(section):
+            if key not in QUEUE_RESERVED_KEYS:
+                params[key] = value
+
+        queues[queue_name] = QueueConfig(
+            name=queue_name,
+            type=queue_type,
+            params=params,
+        )
+
+    if not queues:
+        raise ValueError('No [queue:*] sections found in config')
+
     # Target sections
     targets = []
     target_sections = [s for s in parser.sections()
@@ -97,9 +131,17 @@ def load_config(path):
     for section in target_sections:
         target_name = section.split(':', 1)[1]
 
-        queue_key = parser.get(section, 'queue_key', fallback=None)
-        if not queue_key:
-            raise ValueError('[%s] missing required option: queue_key'
+        queue_ref = parser.get(section, 'queue', fallback=None)
+        if not queue_ref:
+            raise ValueError('[%s] missing required option: queue' % section)
+        if queue_ref not in queues:
+            raise ValueError(
+                '[%s] queue %r does not match any [queue:*] section'
+                % (section, queue_ref))
+
+        queue_name_val = parser.get(section, 'queue_name', fallback=None)
+        if not queue_name_val:
+            raise ValueError('[%s] missing required option: queue_name'
                              % section)
 
         program_name = parser.get(section, 'program_name', fallback=None)
@@ -124,7 +166,8 @@ def load_config(path):
 
         target = TargetConfig(
             name=target_name,
-            queue_key=queue_key,
+            queue=queue_ref,
+            queue_name=queue_name_val,
             program_name=program_name,
             **params,
         )
@@ -148,15 +191,13 @@ def load_config(path):
 
     config = SuperscalerConfig(
         config_path=path,
-        redis_host=redis_host,
-        redis_port=redis_port,
-        redis_password=redis_password,
-        redis_db=redis_db,
         unix_socket_path=unix_socket_path,
         sv_username=sv_username,
         sv_password=sv_password,
+        queues=queues,
         targets=targets,
     )
 
-    logger.info('Loaded config: %d target(s) from %s', len(targets), path)
+    logger.info('Loaded config: %d queue(s), %d target(s) from %s',
+                len(queues), len(targets), path)
     return config

@@ -1,7 +1,7 @@
 Name:           superscaler
-Version:        1.1.10
+Version:        1.2.0
 Release:        1%{?dist}
-Summary:        Zero downtime supervisor worker autoscaler based on Redis queue depth
+Summary:        Zero downtime supervisor worker autoscaler with pluggable queue backends
 License:        MIT
 Source0:        %{name}-%{version}.tar.gz
 Source1:        superscaler.conf
@@ -15,8 +15,9 @@ Requires:       python3-pip
 AutoReqProv:    no
 
 %description
-Superscaler monitors Redis queues and dynamically scales supervisor worker
+Superscaler monitors queue backends and dynamically scales supervisor worker
 process groups using a custom rpc plugin for zero downtime scaling.
+Supports multiple queue backends simultaneously including RabbitMQ and Redis.
 
 %prep
 %autosetup
@@ -43,7 +44,7 @@ install -m 644 %{SOURCE2} %{buildroot}%{_unitdir}/superscaler.service
 %{_unitdir}/superscaler.service
 
 %post
-pip3 install 'redis>=4.0.0' 2>/dev/null || :
+pip3 install 'redis>=4.0.0' 'pika>=1.2.0' 2>/dev/null || :
 %systemd_post superscaler.service
 
 %preun
@@ -52,13 +53,20 @@ pip3 install 'redis>=4.0.0' 2>/dev/null || :
 %postun
 if [ $1 -eq 0 ]; then
     # Full uninstall, not upgrade
-    pip3 uninstall -y redis 2>/dev/null || :
+    pip3 uninstall -y redis pika 2>/dev/null || :
     rm -rf %{_sysconfdir}/superscaler 2>/dev/null || :
     rmdir %{_localstatedir}/log/superscaler 2>/dev/null || :
 fi
 %systemd_postun superscaler.service
 
 %changelog
+* Mon Mar 03 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.2.0-1
+- Refactor to pluggable multi-backend queue monitor abstraction
+- Add RabbitMQ support via pika AMQP
+- Replace single [redis] config with named [queue:*] backend sections
+- Each target can now independently reference different queue backends
+- Rename target param queue_key to queue_name, add queue backend reference
+
 * Thu Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.10-1
 - Remove redundant pending_timeout feature to rely on Supervisor stopwaitsecs and optimized zombie cleanup
 

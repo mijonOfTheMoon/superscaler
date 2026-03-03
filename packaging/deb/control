@@ -8,6 +8,7 @@ Standards-Version: 4.5.1
 Package: superscaler
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}, python3-pip, systemd
-Description: Zero downtime supervisor worker autoscaler based on Redis queue depth
- Superscaler monitors Redis queues and dynamically scales supervisor worker
+Description: Zero downtime supervisor worker autoscaler with pluggable queue backends
+ Superscaler monitors queue backends and dynamically scales supervisor worker
  process groups using a custom rpc plugin for zero downtime scaling.
+ Supports multiple queue backends simultaneously including RabbitMQ and Redis.
