@@ -104,7 +104,7 @@ class ScalerEngine:
             return
 
         try:
-            queue_len = monitor.get_queue_length(target.queue_name)
+            queue_len = monitor.get_queue_length(target.queue_key)
         except Exception:
             logger.warning('[%s] Queue unavailable, skipping tick',
                            target.name)

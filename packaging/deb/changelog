@@ -4,7 +4,7 @@ superscaler (1.2.0-1) unstable; urgency=low
   * Add RabbitMQ support via pika AMQP
   * Replace single [redis] config with named [queue:*] backend sections
   * Each target can now independently reference different queue backends
-  * Rename target param queue_key to queue_name, add queue backend reference
+  * Add queue backend reference param to target config
 
  -- Hasbi Mizan <devopshasbi@gmail.com>  Mon, 03 Mar 2026 04:27:00 +0000
 

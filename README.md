@@ -54,7 +54,7 @@ curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/1.2.0/s
 2. Install the package
 
 ```bash
-sudo rpm -i superscaler-1.2.0-1.amzn2023.noarch.rpm
+sudo dnf install superscaler-1.2.0-1.amzn2023.noarch.rpm
 ```
 
 ### Debian / Ubuntu
@@ -122,7 +122,7 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 | Parameter | Description |
 | :--- | :--- |
 | `queue` | **Required.** Name of a `[queue:*]` section to use as the queue backend. |
-| `queue_name` | **Required.** Queue name to monitor in the backend. |
+| `queue_key` | **Required.** The queue key or name to monitor in the backend. |
 | `program_name` | **Required.** The exact Supervisor program name to be autoscaled. |
 | `tasks_per_worker`| **Required.** Expected pending tasks ratio assigned for each worker. |
 | `min_workers` | **Required.** Minimum boundary for worker process count. |

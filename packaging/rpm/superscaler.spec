@@ -53,7 +53,6 @@ pip3 install 'redis>=4.0.0' 'pika>=1.2.0' 2>/dev/null || :
 %postun
 if [ $1 -eq 0 ]; then
     # Full uninstall, not upgrade
-    pip3 uninstall -y redis pika 2>/dev/null || :
     rm -rf %{_sysconfdir}/superscaler 2>/dev/null || :
     rmdir %{_localstatedir}/log/superscaler 2>/dev/null || :
 fi
@@ -65,7 +64,7 @@ fi
 - Add RabbitMQ support via pika AMQP
 - Replace single [redis] config with named [queue:*] backend sections
 - Each target can now independently reference different queue backends
-- Rename target param queue_key to queue_name, add queue backend reference
+- Add queue backend reference param to target config
 
 * Thu Feb 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 1.1.10-1
 - Remove redundant pending_timeout feature to rely on Supervisor stopwaitsecs and optimized zombie cleanup

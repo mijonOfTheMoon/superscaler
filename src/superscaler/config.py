@@ -50,7 +50,7 @@ class TargetConfig:
 
     name: str
     queue: str
-    queue_name: str
+    queue_key: str
     program_name: str
     poll_interval: int
     tasks_per_worker: int
@@ -139,9 +139,9 @@ def load_config(path):
                 '[%s] queue %r does not match any [queue:*] section'
                 % (section, queue_ref))
 
-        queue_name_val = parser.get(section, 'queue_name', fallback=None)
-        if not queue_name_val:
-            raise ValueError('[%s] missing required option: queue_name'
+        queue_key_val = parser.get(section, 'queue_key', fallback=None)
+        if not queue_key_val:
+            raise ValueError('[%s] missing required option: queue_key'
                              % section)
 
         program_name = parser.get(section, 'program_name', fallback=None)
@@ -167,7 +167,7 @@ def load_config(path):
         target = TargetConfig(
             name=target_name,
             queue=queue_ref,
-            queue_name=queue_name_val,
+            queue_key=queue_key_val,
             program_name=program_name,
             **params,
         )
