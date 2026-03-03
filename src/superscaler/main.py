@@ -82,6 +82,8 @@ def main():
 
     # Create engine
     engine = ScalerEngine(config, queue_monitors, sv_client)
+    min_interval = min(
+        (t.poll_interval for t in config.targets), default=2)
 
     # Signal handling
     reload_requested = False
@@ -120,6 +122,8 @@ def main():
 
                 queue_monitors = new_monitors
                 engine.reload_config(new_config, queue_monitors)
+                min_interval = min(
+                    (t.poll_interval for t in new_config.targets), default=2)
                 logger.info('Config reloaded successfully')
             except Exception:
                 logger.exception('Config reload failed, keeping old config')
@@ -129,8 +133,6 @@ def main():
 
         # Sleep in small increments so signals are handled promptly.
         # Uses monotonic clock to avoid issues with ntp adjustments.
-        min_interval = min(
-            (t.poll_interval for t in engine.config.targets), default=2)
         deadline = time.monotonic() + min_interval
         while engine.running and not reload_requested \
                 and time.monotonic() < deadline:

@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        2.0.1
+Version:        2.1.0
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler with pluggable queue backends
 License:        MIT
@@ -59,6 +59,14 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Mon Mar 03 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.1.0-1
+- Inline cooldown logic into scaler engine and remove cooldown module
+- Optimize set-based lookups for stopped and zombie process detection
+- Reuse persistent RabbitMQ connection instead of reconnecting per poll
+- Batch filter process configs in confirmScaleDown for O(n) performance
+- Remove unused get_process_info from supervisor client
+- Cache min poll interval in main loop
+
 * Mon Mar 03 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.0.1-1
 - Refactor to pluggable multi-backend queue monitor abstraction
 - Add RabbitMQ support via pika AMQP

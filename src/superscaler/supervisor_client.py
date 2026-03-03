@@ -22,10 +22,6 @@ class SupervisorClient:
 
     # Supervisor namespace
 
-    def get_process_info(self, namespec):
-        """Get info for a single process by namespec (group:name)."""
-        return self.server.supervisor.getProcessInfo(namespec)
-
     def get_state(self):
         """Get supervisor daemon state."""
         return self.server.supervisor.getState()

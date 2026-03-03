@@ -2,8 +2,6 @@ import math
 import time
 import logging
 
-from superscaler.cooldown import CooldownManager
-
 logger = logging.getLogger('superscaler')
 
 # States considered active, these count toward current worker count
@@ -11,6 +9,7 @@ ACTIVE_STATES = frozenset({'RUNNING', 'STARTING', 'BACKOFF'})
 
 # States considered stopped, safe to confirm removal
 STOPPED_STATES = frozenset({'STOPPED', 'EXITED', 'FATAL', 'UNKNOWN'})
+
 
 class ScalerEngine:
     """Core scaling loop that processes all configured targets independently.
@@ -27,21 +26,24 @@ class ScalerEngine:
         self.supervisor = supervisor_client
         self.running = True
 
-        # Per target state dictionaries keyed by target name
-        self.cooldowns = {}
-        self.pending_scale_down = {}
-        self.last_tick = {}
+        # Per target state keyed by target name. Each value is a dict:
+        # last_tick, last_up, last_down, cooldown_up, cooldown_down, pending
+        self._state = {}
 
-        self._init_targets()
+        for target in config.targets:
+            self._ensure_target_state(target)
 
-    def _init_targets(self):
-        """Initialize per target state from config."""
-        for target in self.config.targets:
-            self.cooldowns[target.name] = CooldownManager(
-                target.cooldown_up, target.cooldown_down)
-            if target.name not in self.pending_scale_down:
-                self.pending_scale_down[target.name] = []
-            self.last_tick[target.name] = 0.0
+    def _ensure_target_state(self, target):
+        """Create state entry for a target if it does not exist."""
+        if target.name not in self._state:
+            self._state[target.name] = {
+                'last_tick': 0.0,
+                'last_up': 0.0,
+                'last_down': 0.0,
+                'cooldown_up': target.cooldown_up,
+                'cooldown_down': target.cooldown_down,
+                'pending': [],
+            }
 
     def reload_config(self, new_config, queue_monitors=None):
         """Apply new config after sighup while preserving pending state."""
@@ -54,21 +56,14 @@ class ScalerEngine:
 
         # Remove state for deleted targets
         for removed in old_names - new_names:
-            self.cooldowns.pop(removed, None)
-            self.pending_scale_down.pop(removed, None)
-            self.last_tick.pop(removed, None)
+            self._state.pop(removed, None)
 
         # Add state for new targets and update existing cooldown params
         for target in new_config.targets:
-            if target.name not in self.cooldowns:
-                self.cooldowns[target.name] = CooldownManager(
-                    target.cooldown_up, target.cooldown_down)
-                self.pending_scale_down[target.name] = []
-                self.last_tick[target.name] = 0.0
-            else:
-                cd = self.cooldowns[target.name]
-                cd.cooldown_up = target.cooldown_up
-                cd.cooldown_down = target.cooldown_down
+            self._ensure_target_state(target)
+            state = self._state[target.name]
+            state['cooldown_up'] = target.cooldown_up
+            state['cooldown_down'] = target.cooldown_down
 
         logger.info('Config reloaded: %d target(s)', len(new_config.targets))
 
@@ -77,24 +72,23 @@ class ScalerEngine:
         now = time.monotonic()
 
         for target in self.config.targets:
-            elapsed = now - self.last_tick.get(target.name, 0.0)
-            if elapsed < target.poll_interval:
+            state = self._state[target.name]
+            if now - state['last_tick'] < target.poll_interval:
                 continue
 
-            self.last_tick[target.name] = now
+            state['last_tick'] = now
             try:
-                self._process_target(target)
+                self._process_target(target, state, now)
             except Exception:
                 logger.exception('[%s] Tick error', target.name)
 
-    def _process_target(self, target):
+    def _process_target(self, target, state, now):
         """Evaluate and act on a single target.
 
         Scale up and scale down operations are blocked while pending ones exist
         to prevent cascading stops and configuration divergence.
         """
-        cooldown = self.cooldowns[target.name]
-        pending = self.pending_scale_down[target.name]
+        pending = state['pending']
 
         # Poll queue length from the target queue backend
         monitor = self.queue_monitors.get(target.queue)
@@ -123,70 +117,73 @@ class ScalerEngine:
             return
 
         # Process pending scale downs and find zombies
-        proc_states = {p['name']: p['statename'] for p in info['processes']}
-        
-        stopped_or_zombie = []
-        still_stopping = []
+        processes = info['processes']
+        proc_states = {p['name']: p['statename'] for p in processes}
+
+        stopped_or_zombie = set()
+        still_pending = []
 
         # Check pending processes
-        for entry in pending:
-            p_name = entry['name']
-            state = proc_states.get(p_name)
-            
-            # If the process is no longer reported by supervisor, or is properly stopped
-            if state in STOPPED_STATES or state is None:
-                stopped_or_zombie.append(p_name)
-            else:
-                still_stopping.append(entry)
+        if pending:
+            pending_names = set(pending)
+            for name in pending:
+                s = proc_states.get(name)
+                if s in STOPPED_STATES or s is None:
+                    stopped_or_zombie.add(name)
+                else:
+                    still_pending.append(name)
+        else:
+            pending_names = set()
 
-        # Check for zombies (processes that stopped unexpectedly, not in pending)
-        pending_names = {entry['name'] for entry in pending}
-        for p in info['processes']:
-            if p['statename'] in STOPPED_STATES and p['name'] not in pending_names and p['name'] not in stopped_or_zombie:
-                stopped_or_zombie.append(p['name'])
-                
-        # Remove confirmed stopped and zombie processes efficiently
+        # Check for zombies (processes that stopped unexpectedly, not pending)
+        for p in processes:
+            name = p['name']
+            if (p['statename'] in STOPPED_STATES
+                    and name not in pending_names
+                    and name not in stopped_or_zombie):
+                stopped_or_zombie.add(name)
+
+        # Remove confirmed stopped and zombie processes
         if stopped_or_zombie:
             try:
+                names_list = list(stopped_or_zombie)
                 self.supervisor.confirm_scale_down(
-                    target.program_name, stopped_or_zombie)
+                    target.program_name, names_list)
                 logger.info('[%s] Removed %d stopped/zombie processes: %s',
-                            target.name, len(stopped_or_zombie), stopped_or_zombie)
-                
-                # Update info['processes'] locally to avoid an extra RPC call
-                info['processes'] = [
-                    p for p in info['processes'] if p['name'] not in stopped_or_zombie
+                            target.name, len(names_list), names_list)
+
+                # Update processes locally to avoid an extra RPC call
+                processes = [
+                    p for p in processes if p['name'] not in stopped_or_zombie
                 ]
             except Exception:
                 logger.exception(
                     '[%s] Confirm scale down failed for %s',
-                    target.name, stopped_or_zombie)
-                # Keep original pending ones in the pending list for next retry
+                    target.name, list(stopped_or_zombie))
+                # Keep original pending ones in the list for next retry
                 for name in stopped_or_zombie:
-                    original = next(
-                        (e for e in pending if e['name'] == name), None)
-                    if original:
-                        still_stopping.append(original)
+                    if name in pending_names:
+                        still_pending.append(name)
 
-        self.pending_scale_down[target.name] = still_stopping
+        state['pending'] = still_pending
 
         # Count active processes
         active = sum(
-            1 for p in info['processes']
+            1 for p in processes
             if p['statename'] in ACTIVE_STATES
         )
 
         # Scale up only when no pending operations exist
-        if desired > active and not self.pending_scale_down[target.name]:
-            if cooldown.can_scale_up():
-                total_procs = len(info['processes'])
+        if desired > active and not still_pending:
+            if now - state['last_up'] >= state['cooldown_up']:
+                total_procs = len(processes)
                 count = min(target.scale_up_step,
                             target.max_workers - total_procs)
                 if count > 0:
                     try:
                         added = self.supervisor.scale_up(
                             target.program_name, count)
-                        cooldown.mark_scale_up()
+                        state['last_up'] = now
                         logger.info(
                             '[%s] Scaled up +%d: %s (queue=%d)',
                             target.name, count, added, queue_len)
@@ -195,19 +192,16 @@ class ScalerEngine:
                                          target.name)
 
         # Scale down only when no pending operations exist
-        elif desired < active and not self.pending_scale_down[target.name]:
-            if cooldown.can_scale_down():
+        elif desired < active and not still_pending:
+            if now - state['last_down'] >= state['cooldown_down']:
                 count = min(target.scale_down_step,
                             active - target.min_workers)
                 if count > 0:
                     try:
                         stopping = self.supervisor.scale_down(
                             target.program_name, count)
-                        self.pending_scale_down[target.name] = [
-                            {'name': n, 'started': time.monotonic()}
-                            for n in stopping
-                        ]
-                        cooldown.mark_scale_down()
+                        state['pending'] = list(stopping)
+                        state['last_down'] = now
                         logger.info(
                             '[%s] Scaled down -%d: %s (queue=%d)',
                             target.name, count, stopping, queue_len)

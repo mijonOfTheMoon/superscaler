@@ -13,14 +13,14 @@ class QueueMonitor(abc.ABC):
     """
 
     @abc.abstractmethod
-    def get_queue_length(self, queue_name):
+    def get_queue_length(self, queue_key):
         """Return the number of pending messages in the given queue.
 
         Returns 0 if the queue does not exist. Raises on connection errors
         so the caller can decide how to handle unavailability.
 
-        @param  string queue_name  Queue identifier (interpretation varies by backend)
-        @return int                Number of pending messages
+        @param  string queue_key  Queue identifier (interpretation varies by backend)
+        @return int               Number of pending messages
         """
 
     @abc.abstractmethod
@@ -34,7 +34,7 @@ class QueueMonitor(abc.ABC):
 class RedisMonitor(QueueMonitor):
     """Queue monitor for Redis lists.
 
-    Uses the llen command to determine queue depth. The queue_name
+    Uses the llen command to determine queue depth. The queue_key
     parameter maps directly to a Redis list key.
     """
 
@@ -52,13 +52,13 @@ class RedisMonitor(QueueMonitor):
             connect_kwargs['password'] = password
         self.client = redis.Redis(**connect_kwargs)
 
-    def get_queue_length(self, queue_name):
+    def get_queue_length(self, queue_key):
         """Return the list length for the given Redis key.
 
-        @param  string queue_name  Redis list key
-        @return int                Number of items in the list
+        @param  string queue_key  Redis list key
+        @return int               Number of items in the list
         """
-        return self.client.llen(queue_name)
+        return self.client.llen(queue_key)
 
     def ping(self):
         """Return true if Redis is reachable."""
@@ -74,7 +74,8 @@ class RabbitMQMonitor(QueueMonitor):
     """Queue monitor for RabbitMQ queues.
 
     Uses pika with a passive queue_declare to read the message count.
-    The queue_name parameter maps to a RabbitMQ queue name.
+    Maintains a persistent connection and channel, reconnecting on failure.
+    The queue_key parameter maps to a RabbitMQ queue name.
     """
 
     def __init__(self, host='127.0.0.1', port=5672, username='guest',
@@ -90,31 +91,43 @@ class RabbitMQMonitor(QueueMonitor):
             retry_delay=1,
             socket_timeout=5,
         )
+        self._connection = None
+        self._channel = None
 
-    def _get_connection(self):
-        """Create a new blocking connection."""
+    def _ensure_channel(self):
+        """Return a live channel, reconnecting if necessary."""
         import pika
-        return pika.BlockingConnection(self._params)
+        if (self._connection is not None
+                and self._connection.is_open
+                and self._channel is not None
+                and self._channel.is_open):
+            return self._channel
 
-    def get_queue_length(self, queue_name):
+        # Close stale connection if any
+        if self._connection is not None:
+            try:
+                self._connection.close()
+            except Exception:
+                pass
+
+        self._connection = pika.BlockingConnection(self._params)
+        self._channel = self._connection.channel()
+        return self._channel
+
+    def get_queue_length(self, queue_key):
         """Return the message count for the given RabbitMQ queue.
 
-        @param  string queue_name  RabbitMQ queue name
-        @return int                Number of pending messages
+        @param  string queue_key  RabbitMQ queue name
+        @return int               Number of pending messages
         """
-        connection = self._get_connection()
-        try:
-            channel = connection.channel()
-            result = channel.queue_declare(queue=queue_name, passive=True)
-            return result.method.message_count
-        finally:
-            connection.close()
+        channel = self._ensure_channel()
+        result = channel.queue_declare(queue=queue_key, passive=True)
+        return result.method.message_count
 
     def ping(self):
         """Return true if RabbitMQ is reachable."""
         try:
-            connection = self._get_connection()
-            connection.close()
+            self._ensure_channel()
             return True
         except Exception as exc:
             logger.error('RabbitMQ ping failed: %s', exc)

@@ -197,12 +197,13 @@ class SuperscalerNamespaceRPCInterface:
         self.supervisord.options.process_config(do_usage=False)
 
         # Now remove processes from in memory state
+        names_set = set(process_names)
         for name in process_names:
             del group.processes[name]
-            group.config.process_configs = [
-                pc for pc in group.config.process_configs
-                if pc.name != name
-            ]
+        group.config.process_configs = [
+            pc for pc in group.config.process_configs
+            if pc.name not in names_set
+        ]
 
         logger.info('confirmScaleDown %s: removed %s (total=%d)',
                      program_name, process_names, new_numprocs)
