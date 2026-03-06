@@ -3,7 +3,6 @@ import logging
 
 logger = logging.getLogger('superscaler')
 
-
 class QueueMonitor(abc.ABC):
     """Abstract base class for queue backend monitors.
 
@@ -29,7 +28,6 @@ class QueueMonitor(abc.ABC):
 
         @return bool  True if connection is healthy
         """
-
 
 class RedisMonitor(QueueMonitor):
     """Queue monitor for Redis lists.
@@ -68,7 +66,6 @@ class RedisMonitor(QueueMonitor):
         except (redis.ConnectionError, redis.TimeoutError) as exc:
             logger.error('Redis ping failed: %s', exc)
             return False
-
 
 class RabbitMQMonitor(QueueMonitor):
     """Queue monitor for RabbitMQ queues.
@@ -133,14 +130,12 @@ class RabbitMQMonitor(QueueMonitor):
             logger.error('RabbitMQ ping failed: %s', exc)
             return False
 
-
 # Backend registry. To add a new backend, subclass QueueMonitor and
 # add an entry here.
 QUEUE_BACKENDS = {
     'redis': RedisMonitor,
     'rabbitmq': RabbitMQMonitor,
 }
-
 
 def create_queue_monitor(queue_type, params):
     """Factory function to create a queue monitor from config.
