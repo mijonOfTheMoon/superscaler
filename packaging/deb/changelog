@@ -1,3 +1,23 @@
+superscaler (2.1.3-1) unstable; urgency=low
+
+  * Cache class and exception references in queue monitors to eliminate repeated imports from hot path
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Mon, 16 Mar 2026 07:20:00 +0000
+
+superscaler (2.1.2-1) unstable; urgency=low
+
+  * Merge process classification into single pass loop in scaler engine
+  * Remove redundant cooldown state duplication from per-target state dict
+  * Remove redundant QueueConfig.name field, use dict key instead
+  * Cache config file list in RPC plugin to avoid repeated parsing
+  * Store module references in queue monitors to eliminate repeated imports
+  * Fix SIGHUP reload to detect changed queue backend parameters
+  * Fix confirmScaleDown to skip processes that disappeared from supervisor
+  * Recount active workers after zombie cleanup to prevent stale count
+  * Use set-based lookup for confirmable process filtering
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Mon, 16 Mar 2026 07:00:00 +0000
+
 superscaler (2.1.0-1) unstable; urgency=low
 
   * Inline cooldown logic into scaler engine and remove cooldown module

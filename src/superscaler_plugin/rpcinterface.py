@@ -20,6 +20,7 @@ class SuperscalerNamespaceRPCInterface:
 
     def __init__(self, supervisord):
         self.supervisord = supervisord
+        self._config_files_cache = None
 
     def _update(self, text):
         """Validate supervisor is in running state before processing."""
@@ -216,8 +217,12 @@ class SuperscalerNamespaceRPCInterface:
 
         Parses the main supervisord config to find [include] file patterns
         and expands them with glob. Returns the main config plus all
-        matched include files.
+        matched include files. Result is cached after first call since
+        config file paths do not change during supervisor runtime.
         """
+        if self._config_files_cache is not None:
+            return self._config_files_cache
+
         main = self.supervisord.options.configfile
         files = [main]
 
@@ -235,6 +240,7 @@ class SuperscalerNamespaceRPCInterface:
             logger.warning('Failed to parse include files from %s', main,
                            exc_info=True)
 
+        self._config_files_cache = files
         return files
 
     def _update_numprocs_in_config(self, program_name, new_numprocs):

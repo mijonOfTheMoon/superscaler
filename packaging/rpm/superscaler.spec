@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        2.1.0
+Version:        2.1.3
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler with pluggable queue backends
 License:        MIT
@@ -59,6 +59,19 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Mon Mar 16 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.1.3-1
+- Cache class and exception references in queue monitors to eliminate repeated imports from hot path
+
+* Mon Mar 16 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.1.2-1
+- Merge process classification into single pass loop in scaler engine
+- Remove redundant cooldown state duplication from per-target state dict
+- Remove redundant QueueConfig.name field, use dict key instead
+- Cache config file list in RPC plugin to avoid repeated parsing
+- Fix SIGHUP reload to detect changed queue backend parameters
+- Fix confirmScaleDown to skip processes that disappeared from supervisor
+- Recount active workers after zombie cleanup to prevent stale count
+- Use set-based lookup for confirmable process filtering
+
 * Mon Mar 03 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.1.0-1
 - Inline cooldown logic into scaler engine and remove cooldown module
 - Optimize set-based lookups for stopped and zombie process detection

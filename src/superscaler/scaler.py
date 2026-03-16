@@ -27,7 +27,7 @@ class ScalerEngine:
         self.running = True
 
         # Per target state keyed by target name. Each value is a dict:
-        # last_tick, last_up, last_down, cooldown_up, cooldown_down, pending
+        # last_tick, last_up, last_down, pending
         self._state = {}
 
         for target in config.targets:
@@ -40,8 +40,6 @@ class ScalerEngine:
                 'last_tick': 0.0,
                 'last_up': 0.0,
                 'last_down': 0.0,
-                'cooldown_up': target.cooldown_up,
-                'cooldown_down': target.cooldown_down,
                 'pending': [],
             }
 
@@ -58,12 +56,9 @@ class ScalerEngine:
         for removed in old_names - new_names:
             self._state.pop(removed, None)
 
-        # Add state for new targets and update existing cooldown params
+        # Add state for new targets
         for target in new_config.targets:
             self._ensure_target_state(target)
-            state = self._state[target.name]
-            state['cooldown_up'] = target.cooldown_up
-            state['cooldown_down'] = target.cooldown_down
 
         logger.info('Config reloaded: %d target(s)', len(new_config.targets))
 
@@ -85,8 +80,9 @@ class ScalerEngine:
     def _process_target(self, target, state, now):
         """Evaluate and act on a single target.
 
-        Scale up and scale down operations are blocked while pending ones exist
-        to prevent cascading stops and configuration divergence.
+        Single pass over processes to classify states and detect zombies.
+        Scale up and scale down operations are blocked while pending ones
+        exist to prevent cascading stops and configuration divergence.
         """
         pending = state['pending']
 
@@ -116,46 +112,58 @@ class ScalerEngine:
                            target.name)
             return
 
-        # Process pending scale downs and find zombies
         processes = info['processes']
-        proc_states = {p['name']: p['statename'] for p in processes}
+        pending_names = set(pending) if pending else set()
 
+        # Single pass: classify every process and detect zombies
         stopped_or_zombie = set()
         still_pending = []
+        active = 0
 
-        # Check pending processes
-        if pending:
-            pending_names = set(pending)
-            for name in pending:
-                s = proc_states.get(name)
-                if s in STOPPED_STATES or s is None:
-                    stopped_or_zombie.add(name)
-                else:
-                    still_pending.append(name)
-        else:
-            pending_names = set()
-
-        # Check for zombies (processes that stopped unexpectedly, not pending)
         for p in processes:
             name = p['name']
-            if (p['statename'] in STOPPED_STATES
-                    and name not in pending_names
-                    and name not in stopped_or_zombie):
+            sname = p['statename']
+
+            if sname in ACTIVE_STATES:
+                active += 1
+            elif sname in STOPPED_STATES:
+                # Pending process that finished stopping, or zombie
+                stopped_or_zombie.add(name)
+            # else: STOPPING state — not active, not stopped yet
+            # Pending processes still transitioning
+            if name in pending_names and sname not in STOPPED_STATES:
+                still_pending.append(name)
+
+        # Pending processes that disappeared from supervisor entirely
+        current_names = {p['name'] for p in processes}
+        for name in pending_names:
+            if name not in current_names:
                 stopped_or_zombie.add(name)
 
         # Remove confirmed stopped and zombie processes
         if stopped_or_zombie:
             try:
-                names_list = list(stopped_or_zombie)
-                self.supervisor.confirm_scale_down(
-                    target.program_name, names_list)
-                logger.info('[%s] Removed %d stopped/zombie processes: %s',
-                            target.name, len(names_list), names_list)
+                # Only confirm processes that actually exist in supervisor
+                confirmable = [
+                    name for name in stopped_or_zombie
+                    if name in current_names
+                ]
+                if confirmable:
+                    self.supervisor.confirm_scale_down(
+                        target.program_name, confirmable)
+                    logger.info(
+                        '[%s] Removed %d stopped/zombie processes: %s',
+                        target.name, len(confirmable), confirmable)
 
                 # Update processes locally to avoid an extra RPC call
                 processes = [
-                    p for p in processes if p['name'] not in stopped_or_zombie
+                    p for p in processes
+                    if p['name'] not in stopped_or_zombie
                 ]
+                # Recount active after cleanup
+                active = sum(
+                    1 for p in processes if p['statename'] in ACTIVE_STATES
+                )
             except Exception:
                 logger.exception(
                     '[%s] Confirm scale down failed for %s',
@@ -167,15 +175,9 @@ class ScalerEngine:
 
         state['pending'] = still_pending
 
-        # Count active processes
-        active = sum(
-            1 for p in processes
-            if p['statename'] in ACTIVE_STATES
-        )
-
         # Scale up only when no pending operations exist
         if desired > active and not still_pending:
-            if now - state['last_up'] >= state['cooldown_up']:
+            if now - state['last_up'] >= target.cooldown_up:
                 total_procs = len(processes)
                 count = min(target.scale_up_step,
                             target.max_workers - total_procs)
@@ -193,7 +195,7 @@ class ScalerEngine:
 
         # Scale down only when no pending operations exist
         elif desired < active and not still_pending:
-            if now - state['last_down'] >= state['cooldown_down']:
+            if now - state['last_down'] >= target.cooldown_down:
                 count = min(target.scale_down_step,
                             active - target.min_workers)
                 if count > 0:

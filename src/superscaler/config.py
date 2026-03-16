@@ -32,9 +32,9 @@ class QueueConfig:
 
     Each queue config defines a backend type and its connection parameters.
     Multiple targets can reference the same queue config by name.
+    The dict key in SuperscalerConfig.queues serves as the queue name.
     """
 
-    name: str
     type: str
     params: dict
 
@@ -115,7 +115,6 @@ def load_config(path):
                 params[key] = value
 
         queues[queue_name] = QueueConfig(
-            name=queue_name,
             type=queue_type,
             params=params,
         )

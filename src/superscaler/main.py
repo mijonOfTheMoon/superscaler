@@ -113,12 +113,17 @@ def main():
                 # Rebuild queue monitors for new/changed backends
                 new_monitors = {}
                 for qname, qconfig in new_config.queues.items():
-                    if qname in queue_monitors:
+                    old_qconfig = config.queues.get(qname)
+                    if (old_qconfig is not None
+                            and old_qconfig.type == qconfig.type
+                            and old_qconfig.params == qconfig.params):
                         # Reuse existing monitor for unchanged backends
                         new_monitors[qname] = queue_monitors[qname]
                     else:
                         new_monitors[qname] = create_queue_monitor(
                             qconfig.type, qconfig.params)
+
+                config = new_config
 
                 queue_monitors = new_monitors
                 engine.reload_config(new_config, queue_monitors)

@@ -39,6 +39,7 @@ class RedisMonitor(QueueMonitor):
     def __init__(self, host='127.0.0.1', port=6379, password='', db=0,
                  **kwargs):
         import redis
+        self._exc_types = (redis.ConnectionError, redis.TimeoutError)
         connect_kwargs = {
             'host': host,
             'port': int(port),
@@ -60,10 +61,9 @@ class RedisMonitor(QueueMonitor):
 
     def ping(self):
         """Return true if Redis is reachable."""
-        import redis
         try:
             return self.client.ping()
-        except (redis.ConnectionError, redis.TimeoutError) as exc:
+        except self._exc_types as exc:
             logger.error('Redis ping failed: %s', exc)
             return False
 
@@ -78,12 +78,12 @@ class RabbitMQMonitor(QueueMonitor):
     def __init__(self, host='127.0.0.1', port=5672, username='guest',
                  password='guest', vhost='/', **kwargs):
         import pika
-        self._credentials = pika.PlainCredentials(username, password)
+        self._blocking_conn_cls = pika.BlockingConnection
         self._params = pika.ConnectionParameters(
             host=host,
             port=int(port),
             virtual_host=vhost,
-            credentials=self._credentials,
+            credentials=pika.PlainCredentials(username, password),
             connection_attempts=3,
             retry_delay=1,
             socket_timeout=5,
@@ -93,7 +93,6 @@ class RabbitMQMonitor(QueueMonitor):
 
     def _ensure_channel(self):
         """Return a live channel, reconnecting if necessary."""
-        import pika
         if (self._connection is not None
                 and self._connection.is_open
                 and self._channel is not None
@@ -107,7 +106,7 @@ class RabbitMQMonitor(QueueMonitor):
             except Exception:
                 pass
 
-        self._connection = pika.BlockingConnection(self._params)
+        self._connection = self._blocking_conn_cls(self._params)
         self._channel = self._connection.channel()
         return self._channel
 
