@@ -1,3 +1,11 @@
+superscaler (2.2.1-1) unstable; urgency=low
+
+  * Suppress sudo log spam for PM2 commands by using sudo -n flag
+  * Replace raw Python tracebacks with readable error messages in journal logs
+  * Clean up error handling in both PM2 and Supervisor scaling paths
+
+ -- Hasbi Mizan <devopshasbi@gmail.com>  Mon, 16 Mar 2026 09:30:00 +0000
+
 superscaler (2.2.0-1) unstable; urgency=low
 
   * Add PM2 process manager support alongside existing Supervisor backend

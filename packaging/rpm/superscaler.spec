@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        2.2.0
+Version:        2.2.1
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler with pluggable queue backends
 License:        MIT
@@ -59,6 +59,11 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Mon Mar 16 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.2.1-1
+- Suppress sudo log spam for PM2 commands by using sudo -n flag
+- Replace raw Python tracebacks with readable error messages in journal logs
+- Clean up error handling in both PM2 and Supervisor scaling paths
+
 * Mon Mar 16 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.2.0-1
 - Add PM2 process manager support alongside existing Supervisor backend
 - Add target type field to support mixed Supervisor and PM2 targets

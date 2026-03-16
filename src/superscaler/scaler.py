@@ -2,7 +2,7 @@ import math
 import time
 import logging
 
-from superscaler.pm2_client import pm2_get_group_info, pm2_scale_up, pm2_scale_down
+from superscaler.pm2_client import pm2_get_group_info, pm2_scale_up, pm2_scale_down, PM2Error
 
 logger = logging.getLogger('superscaler')
 
@@ -113,9 +113,11 @@ class ScalerEngine:
                 pm2_path=target.pm2_path,
                 pm2_home=target.pm2_home,
                 run_as_user=target.run_as_user)
-        except Exception:
-            logger.warning('[%s] PM2 unavailable, skipping tick',
-                           target.name)
+        except PM2Error as exc:
+            logger.warning('[%s] %s', target.name, exc)
+            return
+        except Exception as exc:
+            logger.warning('[%s] PM2 unavailable: %s', target.name, exc)
             return
 
         processes = info['processes']
@@ -135,9 +137,12 @@ class ScalerEngine:
                         state['last_up'] = now
                         logger.info('[%s] PM2 scaled up +%d: %s (queue=%d)',
                                     target.name, count, added, queue_len)
-                    except Exception:
-                        logger.exception('[%s] PM2 scale up failed',
-                                         target.name)
+                    except PM2Error as exc:
+                        logger.error('[%s] PM2 scale up failed: %s',
+                                     target.name, exc)
+                    except Exception as exc:
+                        logger.error('[%s] PM2 scale up failed: %s',
+                                     target.name, exc)
 
         elif desired < active:
             if now - state['last_down'] >= target.cooldown_down:
@@ -154,9 +159,12 @@ class ScalerEngine:
                         state['last_down'] = now
                         logger.info('[%s] PM2 scaled down to %d (queue=%d)',
                                     target.name, desired_count, queue_len)
-                    except Exception:
-                        logger.exception('[%s] PM2 scale down failed',
-                                         target.name)
+                    except PM2Error as exc:
+                        logger.error('[%s] PM2 scale down failed: %s',
+                                     target.name, exc)
+                    except Exception as exc:
+                        logger.error('[%s] PM2 scale down failed: %s',
+                                     target.name, exc)
 
     def _process_supervisor_target(self, target, state, now):
         """Evaluate and act on a single target.
@@ -245,10 +253,10 @@ class ScalerEngine:
                 active = sum(
                     1 for p in processes if p['statename'] in ACTIVE_STATES
                 )
-            except Exception:
-                logger.exception(
-                    '[%s] Confirm scale down failed for %s',
-                    target.name, list(stopped_or_zombie))
+            except Exception as exc:
+                logger.error(
+                    '[%s] Confirm scale down failed for %s: %s',
+                    target.name, list(stopped_or_zombie), exc)
                 # Keep original pending ones in the list for next retry
                 for name in stopped_or_zombie:
                     if name in pending_names:
@@ -270,9 +278,9 @@ class ScalerEngine:
                         logger.info(
                             '[%s] Scaled up +%d: %s (queue=%d)',
                             target.name, count, added, queue_len)
-                    except Exception:
-                        logger.exception('[%s] Scale up failed',
-                                         target.name)
+                    except Exception as exc:
+                        logger.error('[%s] Scale up failed: %s',
+                                     target.name, exc)
 
         # Scale down only when no pending operations exist
         elif desired < active and not still_pending:
@@ -288,6 +296,6 @@ class ScalerEngine:
                         logger.info(
                             '[%s] Scaled down -%d: %s (queue=%d)',
                             target.name, count, stopping, queue_len)
-                    except Exception:
-                        logger.exception('[%s] Scale down failed',
-                                         target.name)
+                    except Exception as exc:
+                        logger.error('[%s] Scale down failed: %s',
+                                     target.name, exc)

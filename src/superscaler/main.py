@@ -150,8 +150,9 @@ def main():
                 min_interval = min(
                     (t.poll_interval for t in new_config.targets), default=2)
                 logger.info('Config reloaded successfully')
-            except Exception:
-                logger.exception('Config reload failed, keeping old config')
+            except Exception as exc:
+                logger.error('Config reload failed, keeping old config: %s',
+                             exc)
 
         # Process all targets
         engine.tick()
