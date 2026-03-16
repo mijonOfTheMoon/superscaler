@@ -2,6 +2,8 @@ import math
 import time
 import logging
 
+from superscaler.pm2_client import pm2_get_group_info, pm2_scale_up, pm2_scale_down
+
 logger = logging.getLogger('superscaler')
 
 # States considered active, these count toward current worker count
@@ -78,6 +80,85 @@ class ScalerEngine:
                 logger.exception('[%s] Tick error', target.name)
 
     def _process_target(self, target, state, now):
+        """Dispatch to the appropriate target handler based on type."""
+        if target.type == 'pm2':
+            self._process_pm2_target(target, state, now)
+        else:
+            self._process_supervisor_target(target, state, now)
+
+    def _process_pm2_target(self, target, state, now):
+        """Evaluate and act on a single PM2 target.
+
+        No pending state tracking — PM2 removes processes synchronously.
+        """
+        monitor = self.queue_monitors.get(target.queue)
+        if monitor is None:
+            logger.error('[%s] Queue backend %r not found, skipping tick',
+                         target.name, target.queue)
+            return
+
+        try:
+            queue_len = monitor.get_queue_length(target.queue_key)
+        except Exception:
+            logger.warning('[%s] Queue unavailable, skipping tick',
+                           target.name)
+            return
+
+        desired = math.ceil(queue_len / target.tasks_per_worker)
+        desired = max(target.min_workers, min(target.max_workers, desired))
+
+        try:
+            info = pm2_get_group_info(
+                target.program_name,
+                pm2_path=target.pm2_path,
+                pm2_home=target.pm2_home,
+                run_as_user=target.run_as_user)
+        except Exception:
+            logger.warning('[%s] PM2 unavailable, skipping tick',
+                           target.name)
+            return
+
+        processes = info['processes']
+        active = sum(1 for p in processes if p['statename'] in ACTIVE_STATES)
+
+        if desired > active:
+            if now - state['last_up'] >= target.cooldown_up:
+                count = min(target.scale_up_step,
+                            target.max_workers - active)
+                if count > 0:
+                    try:
+                        added = pm2_scale_up(
+                            target.program_name, count,
+                            pm2_path=target.pm2_path,
+                            pm2_home=target.pm2_home,
+                            run_as_user=target.run_as_user)
+                        state['last_up'] = now
+                        logger.info('[%s] PM2 scaled up +%d: %s (queue=%d)',
+                                    target.name, count, added, queue_len)
+                    except Exception:
+                        logger.exception('[%s] PM2 scale up failed',
+                                         target.name)
+
+        elif desired < active:
+            if now - state['last_down'] >= target.cooldown_down:
+                count = min(target.scale_down_step,
+                            active - target.min_workers)
+                if count > 0:
+                    desired_count = active - count
+                    try:
+                        pm2_scale_down(
+                            target.program_name, desired_count,
+                            pm2_path=target.pm2_path,
+                            pm2_home=target.pm2_home,
+                            run_as_user=target.run_as_user)
+                        state['last_down'] = now
+                        logger.info('[%s] PM2 scaled down to %d (queue=%d)',
+                                    target.name, desired_count, queue_len)
+                    except Exception:
+                        logger.exception('[%s] PM2 scale down failed',
+                                         target.name)
+
+    def _process_supervisor_target(self, target, state, now):
         """Evaluate and act on a single target.
 
         Single pass over processes to classify states and detect zombies.

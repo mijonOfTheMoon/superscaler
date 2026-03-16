@@ -25,6 +25,9 @@ OPTIONAL_TARGET_PARAMS = {
 # Reserved keys in queue sections that are not backend params
 QUEUE_RESERVED_KEYS = {'type'}
 
+# Valid values for the target type field
+VALID_TARGET_TYPES = ('supervisor', 'pm2')
+
 
 @dataclasses.dataclass
 class QueueConfig:
@@ -44,22 +47,26 @@ class TargetConfig:
     """Configuration for a single scaling target.
 
     Each target maps a queue name in a specific backend to a supervisor
-    process group and defines all scaling parameters that control how
-    the group is managed.
+    or PM2 process group and defines all scaling parameters that control
+    how the group is managed.
     """
 
     name: str
-    queue: str
-    queue_key: str
-    program_name: str
-    poll_interval: int
-    tasks_per_worker: int
-    min_workers: int
-    max_workers: int
-    scale_up_step: int
-    scale_down_step: int
-    cooldown_up: int
-    cooldown_down: int
+    type: str = 'supervisor'
+    queue: str = ''
+    queue_key: str = ''
+    program_name: str = ''
+    poll_interval: int = 0
+    tasks_per_worker: int = 0
+    min_workers: int = 0
+    max_workers: int = 0
+    scale_up_step: int = 0
+    scale_down_step: int = 0
+    cooldown_up: int = 0
+    cooldown_down: int = 0
+    pm2_path: str = ''
+    pm2_home: str = ''
+    run_as_user: str = ''
 
 
 @dataclasses.dataclass
@@ -67,11 +74,11 @@ class SuperscalerConfig:
     """Top level configuration holding queue backends, supervisor, and target settings."""
 
     config_path: str
-    unix_socket_path: str
-    sv_username: str
-    sv_password: str
-    queues: Dict[str, QueueConfig]
-    targets: List[TargetConfig]
+    unix_socket_path: str = ''
+    sv_username: str = ''
+    sv_password: str = ''
+    queues: Dict[str, QueueConfig] = dataclasses.field(default_factory=dict)
+    targets: List[TargetConfig] = dataclasses.field(default_factory=list)
 
 
 def load_config(path):
@@ -84,17 +91,6 @@ def load_config(path):
     read_ok = parser.read(path)
     if not read_ok:
         raise ValueError('Cannot read config file: %s' % path)
-
-    # Supervisor section
-    if not parser.has_section('supervisor'):
-        raise ValueError('Missing required section [supervisor]')
-    unix_socket_path = parser.get('supervisor', 'unix_socket_path',
-                                  fallback=None)
-    if not unix_socket_path:
-        raise ValueError(
-            '[supervisor] missing required option: unix_socket_path')
-    sv_username = parser.get('supervisor', 'username', fallback='')
-    sv_password = parser.get('supervisor', 'password', fallback='')
 
     # Queue sections
     queues = {}
@@ -148,6 +144,19 @@ def load_config(path):
             raise ValueError('[%s] missing required option: program_name'
                              % section)
 
+        # Target type — defaults to 'supervisor'
+        target_type = parser.get(section, 'type', fallback='supervisor')
+        if target_type not in VALID_TARGET_TYPES:
+            raise ValueError(
+                '[%s] invalid type %r, supported types: %s'
+                % (section, target_type,
+                   ', '.join(VALID_TARGET_TYPES)))
+
+        # PM2 execution environment fields — optional, default to ''
+        pm2_path = parser.get(section, 'pm2_path', fallback='')
+        pm2_home = parser.get(section, 'pm2_home', fallback='')
+        run_as_user = parser.get(section, 'run_as_user', fallback='')
+
         # All scaling parameters are mandatory per target
         params = {}
         for param_name, param_type in REQUIRED_TARGET_PARAMS.items():
@@ -165,9 +174,13 @@ def load_config(path):
 
         target = TargetConfig(
             name=target_name,
+            type=target_type,
             queue=queue_ref,
             queue_key=queue_key_val,
             program_name=program_name,
+            pm2_path=pm2_path,
+            pm2_home=pm2_home,
+            run_as_user=run_as_user,
             **params,
         )
 
@@ -186,7 +199,38 @@ def load_config(path):
         if target.poll_interval < 1:
             raise ValueError('[%s] poll_interval must be >= 1' % section)
 
+        # Warn if PM2 fields are set on a supervisor target
+        if target.type == 'supervisor':
+            pm2_fields = []
+            if target.pm2_path:
+                pm2_fields.append('pm2_path')
+            if target.pm2_home:
+                pm2_fields.append('pm2_home')
+            if target.run_as_user:
+                pm2_fields.append('run_as_user')
+            if pm2_fields:
+                logger.warning(
+                    '[%s] %s ignored for supervisor target',
+                    section, ', '.join(pm2_fields))
+
         targets.append(target)
+
+    # Supervisor section — only required when supervisor targets exist
+    has_supervisor_targets = any(t.type == 'supervisor' for t in targets)
+    unix_socket_path = ''
+    sv_username = ''
+    sv_password = ''
+
+    if has_supervisor_targets:
+        if not parser.has_section('supervisor'):
+            raise ValueError('Missing required section [supervisor]')
+        unix_socket_path = parser.get('supervisor', 'unix_socket_path',
+                                      fallback=None)
+        if not unix_socket_path:
+            raise ValueError(
+                '[supervisor] missing required option: unix_socket_path')
+        sv_username = parser.get('supervisor', 'username', fallback='')
+        sv_password = parser.get('supervisor', 'password', fallback='')
 
     config = SuperscalerConfig(
         config_path=path,

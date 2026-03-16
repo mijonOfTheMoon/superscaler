@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "superscaler"
-version = "2.1.3"
-description = "Supervisor worker autoscaler"
+version = "2.2.0"
+description = "Supervisor and PM2 worker autoscaler"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 dependencies = ["redis>=4.0.0", "pika>=1.2.0"]

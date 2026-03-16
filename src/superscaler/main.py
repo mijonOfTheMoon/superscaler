@@ -1,9 +1,11 @@
+import os
 import signal
 import sys
 import time
 import logging
 
 from superscaler.config import load_config
+from superscaler.pm2_client import pm2_ping
 from superscaler.queue_monitor import create_queue_monitor
 from superscaler.supervisor_client import SupervisorClient
 from superscaler.scaler import ScalerEngine
@@ -69,16 +71,34 @@ def main():
             sys.exit(1)
         logger.info('Successfully connected to queue backend %r', qname)
 
-    # Build unix socket url for supervisor xml rpc transport
-    xmlrpc_url = config.unix_socket_path
+    # Supervisor client — only needed when supervisor targets exist
+    has_supervisor_targets = any(t.type == 'supervisor' for t in config.targets)
+    sv_client = None
 
-    sv_client = SupervisorClient(
-        xmlrpc_url, config.sv_username or None,
-        config.sv_password or None)
-    if not sv_client.ping():
-        logger.error('Cannot connect to supervisor at %s',
-                     config.unix_socket_path)
-        sys.exit(1)
+    if has_supervisor_targets:
+        xmlrpc_url = config.unix_socket_path
+        sv_client = SupervisorClient(
+            xmlrpc_url, config.sv_username or None,
+            config.sv_password or None)
+        if not sv_client.ping():
+            logger.error('Cannot connect to supervisor at %s',
+                         config.unix_socket_path)
+            sys.exit(1)
+
+    # PM2 startup checks — only when PM2 targets exist
+    has_pm2_targets = any(t.type == 'pm2' for t in config.targets)
+
+    if has_pm2_targets:
+        for t in config.targets:
+            if t.type == 'pm2' and t.pm2_path:
+                if not os.path.isfile(t.pm2_path) or not os.access(t.pm2_path, os.X_OK):
+                    logger.error('pm2_path %r for target %r does not exist or is not executable',
+                                 t.pm2_path, t.name)
+                    sys.exit(1)
+        first_pm2 = next(t for t in config.targets if t.type == 'pm2')
+        if not pm2_ping(first_pm2.pm2_path, first_pm2.pm2_home, first_pm2.run_as_user):
+            logger.error('Cannot connect to PM2')
+            sys.exit(1)
 
     # Create engine
     engine = ScalerEngine(config, queue_monitors, sv_client)
