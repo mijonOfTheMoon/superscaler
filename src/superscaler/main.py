@@ -5,9 +5,9 @@ import time
 import logging
 
 from superscaler.config import load_config
+from superscaler.node_client import create_node_client
 from superscaler.pm2_client import pm2_ping
 from superscaler.queue_monitor import create_queue_monitor
-from superscaler.supervisor_client import SupervisorClient
 from superscaler.scaler import ScalerEngine
 
 logger = logging.getLogger('superscaler')
@@ -71,19 +71,20 @@ def main():
             sys.exit(1)
         logger.info('Successfully connected to queue backend %r', qname)
 
-    # Supervisor client — only needed when supervisor targets exist
-    has_supervisor_targets = any(t.type == 'supervisor' for t in config.targets)
-    sv_client = None
+    # Create node clients for all configured nodes
+    node_clients = {}
+    for node_name, node_config in config.nodes.items():
+        node_clients[node_name] = create_node_client(node_config)
 
-    if has_supervisor_targets:
-        xmlrpc_url = config.unix_socket_path
-        sv_client = SupervisorClient(
-            xmlrpc_url, config.sv_username or None,
-            config.sv_password or None)
-        if not sv_client.ping():
-            logger.error('Cannot connect to supervisor at %s',
-                         config.unix_socket_path)
+    # Health check all node clients
+    for node_name, client in node_clients.items():
+        node_url = config.nodes[node_name].url
+        if not client.ping():
+            logger.error('Cannot connect to node %r at %s',
+                         node_name, node_url)
             sys.exit(1)
+        logger.info('Successfully connected to node %r at %s',
+                     node_name, node_url)
 
     # PM2 startup checks — only when PM2 targets exist
     has_pm2_targets = any(t.type == 'pm2' for t in config.targets)
@@ -101,7 +102,7 @@ def main():
             sys.exit(1)
 
     # Create engine
-    engine = ScalerEngine(config, queue_monitors, sv_client)
+    engine = ScalerEngine(config, queue_monitors, node_clients=node_clients)
     min_interval = min(
         (t.poll_interval for t in config.targets), default=2)
 
@@ -143,10 +144,27 @@ def main():
                         new_monitors[qname] = create_queue_monitor(
                             qconfig.type, qconfig.params)
 
-                config = new_config
+                # Rebuild node clients: reuse unchanged, recreate changed,
+                # create new, drop removed
+                new_node_clients = {}
+                for node_name, node_cfg in new_config.nodes.items():
+                    old_node_cfg = config.nodes.get(node_name)
+                    if (old_node_cfg is not None
+                            and old_node_cfg.url == node_cfg.url
+                            and old_node_cfg.username == node_cfg.username
+                            and old_node_cfg.password == node_cfg.password):
+                        # Reuse existing client for unchanged node
+                        new_node_clients[node_name] = node_clients[node_name]
+                    else:
+                        # New or changed node — create fresh client
+                        new_node_clients[node_name] = create_node_client(
+                            node_cfg)
 
+                config = new_config
+                node_clients = new_node_clients
                 queue_monitors = new_monitors
-                engine.reload_config(new_config, queue_monitors)
+                engine.reload_config(new_config, queue_monitors,
+                                     node_clients=new_node_clients)
                 min_interval = min(
                     (t.poll_interval for t in new_config.targets), default=2)
                 logger.info('Config reloaded successfully')

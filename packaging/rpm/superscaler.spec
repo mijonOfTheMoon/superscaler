@@ -1,5 +1,5 @@
 Name:           superscaler
-Version:        2.2.1
+Version:        3.0.0
 Release:        1%{?dist}
 Summary:        Zero downtime supervisor worker autoscaler with pluggable queue backends
 License:        MIT
@@ -59,6 +59,19 @@ fi
 %systemd_postun superscaler.service
 
 %changelog
+* Thu Mar 26 2026 Hasbi Mizan <devopshasbi@gmail.com> - 3.0.0-1
+- Add multi-node clustering support for Supervisor targets
+- Add abstract NodeClient interface and factory for extensible backend support
+- Add [node:<name>] config sections for defining remote and local Supervisor nodes
+- Add HTTP XML-RPC transport support alongside existing Unix socket transport
+- Add multi-node scaling distribution: least-loaded for scale up, most-loaded for scale down
+- Add per-node pending state tracking for independent scale-down confirmation
+- Add backward compatibility: legacy [supervisor] section auto-creates default node
+- Add SIGHUP reload support for node configuration changes
+- Add master/slave clustering documentation to README
+- Change DEB packaging to not auto-enable or auto-start service on install
+- Change ScalerEngine to accept Dict[str, NodeClient] instead of single SupervisorClient
+
 * Mon Mar 16 2026 Hasbi Mizan <devopshasbi@gmail.com> - 2.2.1-1
 - Suppress sudo log spam for PM2 commands by using sudo -n flag
 - Replace raw Python tracebacks with readable error messages in journal logs

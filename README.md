@@ -48,6 +48,66 @@ Because standard Supervisor does not support dynamic process additions/removals 
 
 ---
 
+## Clustering
+
+Superscaler supports a master/slave clustering architecture to manage Supervisor workers across multiple servers.
+
+- The **master node** runs the Superscaler daemon (`superscaler`). It reads the configuration, polls queues, and issues scaling commands to all configured nodes.
+- **Slave nodes** only run Supervisor with the `superscaler_plugin` installed. They expose an HTTP XML-RPC endpoint so the master can reach them remotely. Slave nodes do **not** need the superscaler daemon running.
+
+For local nodes (on the same machine as the daemon), Superscaler communicates via Unix socket. For remote nodes, it uses standard HTTP XML-RPC (`xmlrpc.client.ServerProxy`) with optional HTTP Basic Auth.
+
+### `[node:<name>]` Section
+
+Each node is defined with a `[node:<name>]` section in `superscaler.conf`. The name is a unique identifier you choose (e.g., `local`, `worker-1`).
+
+| Parameter | Description |
+| :--- | :--- |
+| `url` | **Required.** Endpoint URL. Use `http://host:port/RPC2` for remote nodes or `unix:///path/to/socket` for local nodes. |
+| `username` | Supervisor username for authentication. Leave blank if none. |
+| `password` | Supervisor password for authentication. Leave blank if none. |
+
+Example:
+
+```ini
+[node:local]
+url = unix:///var/run/supervisor.sock
+username =
+password =
+
+[node:worker-1]
+url = http://192.168.1.10:9001/RPC2
+username = admin
+password = secret
+
+[node:worker-2]
+url = http://192.168.1.11:9001/RPC2
+username = admin
+password = secret
+```
+
+### `nodes` Parameter on Targets
+
+Each `[target:*]` section accepts a `nodes` parameter — a comma-separated list of `[node:<name>]` names that the target should scale across.
+
+```ini
+[target:main-scaler]
+type = supervisor
+queue = main-rabbit
+queue_key = tasks
+program_name = example-worker
+nodes = local, worker-1, worker-2
+tasks_per_worker = 50
+min_workers = 2
+max_workers = 30
+```
+
+When scaling up, workers are added to the node with the fewest active workers first (least-loaded). When scaling down, workers are removed from the node with the most active workers first (most-loaded).
+
+> **Backward compatibility:** If no `[node:*]` sections are defined but a `[supervisor]` section exists, Superscaler automatically creates a default node from the `[supervisor]` settings. Existing configurations continue to work without changes.
+
+---
+
 ## Installation Guide
 
 Requirements for superscaler are `python3.9`, `redis-py` minimum version `4.0.0`, and `pika` minimum version `1.2.0`. This codebase provides standardized installation for `.rpm` and `.deb` distributions.
@@ -57,13 +117,13 @@ Requirements for superscaler are `python3.9`, `redis-py` minimum version `4.0.0`
 1. Download the RPM package
 
 ```bash
-curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/2.2.1/superscaler-2.2.1-1.amzn2023.noarch.rpm
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/3.0.0/superscaler-3.0.0-1.amzn2023.noarch.rpm
 ```
 
 2. Install the package
 
 ```bash
-sudo dnf install superscaler-2.2.1-1.amzn2023.noarch.rpm
+sudo dnf install superscaler-3.0.0-1.amzn2023.noarch.rpm
 ```
 
 ### Debian / Ubuntu
@@ -71,14 +131,102 @@ sudo dnf install superscaler-2.2.1-1.amzn2023.noarch.rpm
 1. Download the DEB package
 
 ```bash
-curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/2.2.1/superscaler_2.2.1-1_all.deb
+curl -LO https://github.com/mijonOfTheMoon/superscaler/releases/download/3.0.0/superscaler_3.0.0-1_all.deb
 ```
 
 2. Install the package
 
 ```bash
-sudo dpkg -i superscaler_2.2.1-1_all.deb
+sudo dpkg -i superscaler_3.0.0-1_all.deb
 ```
+
+> **Note:** The superscaler service is **not** enabled or started automatically after installation. This is intentional — slave nodes only need the plugin, not the daemon. See the sections below for setup instructions.
+
+### Master Node Setup
+
+The master node runs the Superscaler daemon and coordinates scaling across all nodes.
+
+1. Install the package (RPM or DEB as shown above).
+
+2. Configure `/etc/superscaler/superscaler.conf` with `[node:<name>]` sections for each Supervisor node in your cluster:
+
+```ini
+[node:local]
+url = unix:///var/run/supervisor.sock
+username =
+password =
+
+[node:worker-1]
+url = http://192.168.1.10:9001/RPC2
+username = admin
+password = secret
+```
+
+3. Define your targets with the `nodes` parameter referencing the configured nodes:
+
+```ini
+[target:main-scaler]
+type = supervisor
+queue = main-rabbit
+queue_key = tasks
+program_name = example-worker
+nodes = local, worker-1
+tasks_per_worker = 50
+min_workers = 2
+max_workers = 20
+```
+
+4. Enable and start the superscaler service:
+
+```bash
+sudo systemctl enable superscaler
+sudo systemctl start superscaler
+```
+
+5. If the master node also runs Supervisor workers, add the plugin to the local `supervisord.conf`:
+
+```ini
+[rpcinterface:superscaler]
+supervisor.rpcinterface_factory = superscaler_plugin.rpcinterface:SuperscalerNamespaceRPCInterface
+```
+
+Then restart Supervisor:
+
+```bash
+sudo systemctl restart supervisor
+```
+
+### Slave Node Setup
+
+Slave nodes run Supervisor with the plugin and expose an HTTP XML-RPC endpoint. The superscaler daemon does **not** need to run on slave nodes.
+
+1. Install the package (RPM or DEB as shown above). The service stays disabled by default — no extra steps needed to keep it off.
+
+2. Add the `[rpcinterface:superscaler]` plugin to `/etc/supervisor/supervisord.conf`:
+
+```ini
+[rpcinterface:superscaler]
+supervisor.rpcinterface_factory = superscaler_plugin.rpcinterface:SuperscalerNamespaceRPCInterface
+```
+
+3. Enable the `[inet_http_server]` section in `/etc/supervisor/supervisord.conf` so the master can reach this node over HTTP:
+
+```ini
+[inet_http_server]
+port = 0.0.0.0:9001
+username = admin
+password = secret
+```
+
+Use a strong password and restrict network access (firewall rules, private network) to protect the endpoint.
+
+4. Restart Supervisor to apply the changes:
+
+```bash
+sudo systemctl restart supervisor
+```
+
+That's it for the slave. No superscaler service needs to be enabled or started — the master node handles all scaling decisions remotely.
 
 ## Usage
 
@@ -141,12 +289,15 @@ Every target worker pool must be defined with `[target:<your_target_name>]` pref
 | `scale_down_step` | *Optional.* The limit of workers to remove per scaling down action. Defaults to `1`. |
 | `cooldown_up` | *Optional.* Safe duration in seconds to wait before allowing another scale up. Defaults to `0`. |
 | `cooldown_down` | *Optional.* Safe duration in seconds to wait before allowing another scale down. Defaults to `0`. |
+| `nodes` | *Optional.* Comma-separated list of `[node:<name>]` names for multi-node scaling. See [Clustering](#clustering). |
 
 ### Post Configuration
 
-After configuring the superscaler, you need to restart the supervisor and superscaler services to apply the changes.
+For a single-node setup using the `[supervisor]` section, restart both services:
 
 ```bash
 sudo systemctl restart supervisor
 sudo systemctl restart superscaler
 ```
+
+For a multi-node cluster setup, see [Master Node Setup](#master-node-setup) and [Slave Node Setup](#slave-node-setup) above.

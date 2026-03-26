@@ -43,6 +43,21 @@ class QueueConfig:
 
 
 @dataclasses.dataclass
+class NodeConfig:
+    """Configuration for a single Supervisor (or future backend) node.
+
+    Each node config defines a connection endpoint and optional credentials.
+    The 'type' field determines which backend client to instantiate.
+    """
+
+    name: str
+    url: str
+    type: str = 'supervisor'
+    username: str = ''
+    password: str = ''
+
+
+@dataclasses.dataclass
 class TargetConfig:
     """Configuration for a single scaling target.
 
@@ -67,6 +82,7 @@ class TargetConfig:
     pm2_path: str = ''
     pm2_home: str = ''
     run_as_user: str = ''
+    nodes: List[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
@@ -77,6 +93,7 @@ class SuperscalerConfig:
     unix_socket_path: str = ''
     sv_username: str = ''
     sv_password: str = ''
+    nodes: Dict[str, NodeConfig] = dataclasses.field(default_factory=dict)
     queues: Dict[str, QueueConfig] = dataclasses.field(default_factory=dict)
     targets: List[TargetConfig] = dataclasses.field(default_factory=list)
 
@@ -117,6 +134,62 @@ def load_config(path):
 
     if not queues:
         raise ValueError('No [queue:*] sections found in config')
+
+    # Node sections — parse [node:<name>] before targets since targets
+    # reference nodes by name.
+    nodes = {}
+    node_sections = [s for s in parser.sections()
+                     if s.startswith('node:')]
+
+    for section in node_sections:
+        node_name = section.split(':', 1)[1]
+
+        node_url = parser.get(section, 'url', fallback=None)
+        if not node_url:
+            raise ValueError('[%s] missing required option: url' % section)
+
+        node_type = parser.get(section, 'type', fallback='supervisor')
+        node_username = parser.get(section, 'username', fallback='')
+        node_password = parser.get(section, 'password', fallback='')
+
+        nodes[node_name] = NodeConfig(
+            name=node_name,
+            url=node_url,
+            type=node_type,
+            username=node_username,
+            password=node_password,
+        )
+
+    # Backward compatibility — read [supervisor] section fields and apply
+    # node-creation logic depending on whether [node:*] sections exist.
+    has_node_sections = len(nodes) > 0
+    has_supervisor_section = parser.has_section('supervisor')
+    unix_socket_path = ''
+    sv_username = ''
+    sv_password = ''
+
+    if has_supervisor_section:
+        unix_socket_path = parser.get('supervisor', 'unix_socket_path',
+                                      fallback=None) or ''
+        sv_username = parser.get('supervisor', 'username', fallback='')
+        sv_password = parser.get('supervisor', 'password', fallback='')
+
+    if has_node_sections and has_supervisor_section:
+        # [node:*] takes precedence — ignore [supervisor], log warning
+        logger.warning(
+            '[supervisor] section ignored because [node:*] sections exist')
+    elif not has_node_sections and has_supervisor_section:
+        # Legacy mode — create a default node from [supervisor]
+        if not unix_socket_path:
+            raise ValueError(
+                '[supervisor] missing required option: unix_socket_path')
+        nodes['_default'] = NodeConfig(
+            name='_default',
+            url=unix_socket_path,
+            type='supervisor',
+            username=sv_username,
+            password=sv_password,
+        )
 
     # Target sections
     targets = []
@@ -172,6 +245,26 @@ def load_config(path):
             raw = parser.get(section, param_name, fallback=str(default_val))
             params[param_name] = param_type(raw)
 
+        # Node association for supervisor targets
+        target_nodes = []
+        if target_type == 'supervisor':
+            nodes_raw = parser.get(section, 'nodes', fallback=None)
+            if nodes_raw:
+                target_nodes = [n.strip() for n in nodes_raw.split(',')
+                                if n.strip()]
+                for node_ref in target_nodes:
+                    if node_ref not in nodes:
+                        raise ValueError(
+                            '[%s] node %r does not match any '
+                            '[node:*] section' % (section, node_ref))
+            elif '_default' in nodes:
+                # Auto-assign default node for backward compatibility
+                target_nodes = ['_default']
+            else:
+                raise ValueError(
+                    '[%s] missing required option: nodes '
+                    '(no default node available)' % section)
+
         target = TargetConfig(
             name=target_name,
             type=target_type,
@@ -181,6 +274,7 @@ def load_config(path):
             pm2_path=pm2_path,
             pm2_home=pm2_home,
             run_as_user=run_as_user,
+            nodes=target_nodes,
             **params,
         )
 
@@ -215,32 +309,25 @@ def load_config(path):
 
         targets.append(target)
 
-    # Supervisor section — only required when supervisor targets exist
+    # Final validation: if there are supervisor targets but no nodes at all,
+    # the config is invalid (covers the case where neither [supervisor] nor
+    # [node:*] sections exist).
     has_supervisor_targets = any(t.type == 'supervisor' for t in targets)
-    unix_socket_path = ''
-    sv_username = ''
-    sv_password = ''
-
-    if has_supervisor_targets:
-        if not parser.has_section('supervisor'):
-            raise ValueError('Missing required section [supervisor]')
-        unix_socket_path = parser.get('supervisor', 'unix_socket_path',
-                                      fallback=None)
-        if not unix_socket_path:
-            raise ValueError(
-                '[supervisor] missing required option: unix_socket_path')
-        sv_username = parser.get('supervisor', 'username', fallback='')
-        sv_password = parser.get('supervisor', 'password', fallback='')
+    if has_supervisor_targets and not nodes:
+        raise ValueError(
+            'Supervisor targets require node configuration: '
+            'add [node:*] sections or a [supervisor] section')
 
     config = SuperscalerConfig(
         config_path=path,
         unix_socket_path=unix_socket_path,
         sv_username=sv_username,
         sv_password=sv_password,
+        nodes=nodes,
         queues=queues,
         targets=targets,
     )
 
-    logger.info('Loaded config: %d queue(s), %d target(s) from %s',
-                len(queues), len(targets), path)
+    logger.info('Loaded config: %d queue(s), %d node(s), %d target(s) from %s',
+                len(queues), len(nodes), len(targets), path)
     return config

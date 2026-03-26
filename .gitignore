@@ -4,3 +4,4 @@ __pycache__/
 *.sh
 *.swp
 .kiro
+*.egg-info

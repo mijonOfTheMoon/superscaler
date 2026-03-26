@@ -1,24 +1,44 @@
 import logging
 import xmlrpc.client
+from urllib.parse import urlparse, urlunparse
 
 from supervisor.xmlrpc import SupervisorTransport
 
+from superscaler.node_client import NodeClient
+
 logger = logging.getLogger('superscaler')
 
-class SupervisorClient:
-    """XML rpc client for supervisor using unix socket transport.
+class SupervisorClient(NodeClient):
+    """XML rpc client for supervisor using unix socket or HTTP transport.
 
     Wraps both the standard supervisor namespace and the custom superscaler
-    namespace provided by the superscaler plugin. Authentication is passed
-    through to the transport layer for unix socket xml rpc calls.
+    namespace provided by the superscaler plugin. Supports two transport
+    modes based on URL scheme:
+
+    - ``unix://`` — Uses ``SupervisorTransport`` for local unix socket.
+    - ``http://`` — Uses standard ``xmlrpc.client.ServerProxy`` with
+      optional HTTP Basic Auth for remote nodes.
     """
 
     def __init__(self, url, username=None, password=None):
         self.url = url
-        transport = SupervisorTransport(
-            username or None, password or None, url)
-        self.server = xmlrpc.client.ServerProxy(
-            'http://127.0.0.1', transport=transport)
+        if url.startswith('unix://'):
+            transport = SupervisorTransport(
+                username or None, password or None, url)
+            self.server = xmlrpc.client.ServerProxy(
+                'http://127.0.0.1', transport=transport)
+        elif url.startswith('http://'):
+            if username and password:
+                parsed = urlparse(url)
+                netloc = '%s:%s@%s' % (username, password, parsed.netloc)
+                auth_url = urlunparse(parsed._replace(netloc=netloc))
+                self.server = xmlrpc.client.ServerProxy(auth_url)
+            else:
+                self.server = xmlrpc.client.ServerProxy(url)
+        else:
+            raise ValueError(
+                'Unsupported URL scheme for SupervisorClient: %r. '
+                'Expected unix:// or http://' % url)
 
     # Supervisor namespace
 
